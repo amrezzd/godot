@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef TEST_RESOURCE
-#define TEST_RESOURCE
+#ifndef TEST_RESOURCE_H
+#define TEST_RESOURCE_H
 
 #include "core/io/resource.h"
 #include "core/io/resource_loader.h"
@@ -74,10 +74,10 @@ TEST_CASE("[Resource] Saving and loading") {
 	Ref<Resource> child_resource = memnew(Resource);
 	child_resource->set_name("I'm a child resource");
 	resource->set_meta("other_resource", child_resource);
-	const String save_path_binary = OS::get_singleton()->get_cache_path().plus_file("resource.res");
-	const String save_path_text = OS::get_singleton()->get_cache_path().plus_file("resource.tres");
-	ResourceSaver::save(save_path_binary, resource);
-	ResourceSaver::save(save_path_text, resource);
+	const String save_path_binary = OS::get_singleton()->get_cache_path().path_join("resource.res");
+	const String save_path_text = OS::get_singleton()->get_cache_path().path_join("resource.tres");
+	ResourceSaver::save(resource, save_path_binary);
+	ResourceSaver::save(resource, save_path_text);
 
 	const Ref<Resource> &loaded_resource_binary = ResourceLoader::load(save_path_binary);
 	CHECK_MESSAGE(
@@ -111,4 +111,4 @@ TEST_CASE("[Resource] Saving and loading") {
 }
 } // namespace TestResource
 
-#endif // TEST_RESOURCE
+#endif // TEST_RESOURCE_H

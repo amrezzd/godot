@@ -31,6 +31,7 @@
 #ifndef ANIMATION_NODE_STATE_MACHINE_H
 #define ANIMATION_NODE_STATE_MACHINE_H
 
+#include "core/math/expression.h"
 #include "scene/animation/animation_tree.h"
 
 class AnimationNodeStateMachineTransition : public Resource {
@@ -48,9 +49,14 @@ private:
 	bool auto_advance = false;
 	StringName advance_condition;
 	StringName advance_condition_name;
-	float xfade = 0.0;
+	float xfade_time = 0.0;
+	Ref<Curve> xfade_curve;
 	bool disabled = false;
 	int priority = 1;
+	String advance_expression;
+
+	friend class AnimationNodeStateMachinePlayback;
+	Ref<Expression> expression;
 
 protected:
 	static void _bind_methods();
@@ -67,8 +73,14 @@ public:
 
 	StringName get_advance_condition_name() const;
 
+	void set_advance_expression(const String &p_expression);
+	String get_advance_expression() const;
+
 	void set_xfade_time(float p_xfade);
 	float get_xfade_time() const;
+
+	void set_xfade_curve(const Ref<Curve> &p_curve);
+	Ref<Curve> get_xfade_curve() const;
 
 	void set_disabled(bool p_disabled);
 	bool is_disabled() const;
@@ -105,6 +117,7 @@ class AnimationNodeStateMachinePlayback : public Resource {
 
 	StringName current;
 	Transition current_transition;
+	Ref<Curve> current_curve;
 	bool force_auto_advance = false;
 
 	StringName fading_from;
@@ -120,7 +133,7 @@ class AnimationNodeStateMachinePlayback : public Resource {
 
 	bool _travel(AnimationNodeStateMachine *p_state_machine, const StringName &p_travel);
 
-	double process(AnimationNodeStateMachine *p_state_machine, double p_time, bool p_seek, bool p_seek_root);
+	double process(AnimationNodeStateMachine *p_state_machine, double p_time, bool p_seek, bool p_is_external_seeking);
 
 	bool _check_advance_condition(const Ref<AnimationNodeStateMachine> p_state_machine, const Ref<AnimationNodeStateMachineTransition> p_transition) const;
 
@@ -166,15 +179,15 @@ private:
 
 	StringName playback = "playback";
 	StringName state_machine_name;
-	Ref<AnimationNodeStateMachine> prev_state_machine;
+	AnimationNodeStateMachine *prev_state_machine = nullptr;
 	bool updating_transitions = false;
 
 	Vector2 graph_offset;
 
 	void _tree_changed();
 	void _remove_transition(const Ref<AnimationNodeStateMachineTransition> p_transition);
-	void _rename_transition(const StringName &p_name, const StringName &p_new_name);
-	bool _can_connect(const StringName &p_name, const Vector<Ref<AnimationNodeStateMachine>> p_parents = Vector<Ref<AnimationNodeStateMachine>>()) const;
+	void _rename_transitions(const StringName &p_name, const StringName &p_new_name);
+	bool _can_connect(const StringName &p_name, Vector<AnimationNodeStateMachine *> p_parents = Vector<AnimationNodeStateMachine *>());
 	StringName _get_shortest_path(const StringName &p_path) const;
 
 protected:
@@ -221,12 +234,12 @@ public:
 
 	bool can_edit_node(const StringName &p_name) const;
 
-	Ref<AnimationNodeStateMachine> get_prev_state_machine() const;
+	AnimationNodeStateMachine *get_prev_state_machine() const;
 
 	void set_graph_offset(const Vector2 &p_offset);
 	Vector2 get_graph_offset() const;
 
-	virtual double process(double p_time, bool p_seek, bool p_seek_root) override;
+	virtual double process(double p_time, bool p_seek, bool p_is_external_seeking) override;
 	virtual String get_caption() const override;
 
 	virtual Ref<AnimationNode> get_child_by_name(const StringName &p_name) override;

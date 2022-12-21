@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef VEHICLE_BODY_H
-#define VEHICLE_BODY_H
+#ifndef VEHICLE_BODY_3D_H
+#define VEHICLE_BODY_3D_H
 
 #include "scene/3d/physics_body_3d.h"
 
@@ -147,13 +147,13 @@ public:
 	void set_steering(real_t p_steering);
 	real_t get_steering() const;
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 	VehicleWheel3D();
 };
 
-class VehicleBody3D : public RigidDynamicBody3D {
-	GDCLASS(VehicleBody3D, RigidDynamicBody3D);
+class VehicleBody3D : public RigidBody3D {
+	GDCLASS(VehicleBody3D, RigidBody3D);
 
 	real_t engine_force = 0.0;
 	real_t brake = 0.0;
@@ -210,4 +210,4 @@ public:
 	VehicleBody3D();
 };
 
-#endif // VEHICLE_BODY_H
+#endif // VEHICLE_BODY_3D_H

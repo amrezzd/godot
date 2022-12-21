@@ -64,7 +64,7 @@ private:
 		uint32_t key = 0;
 
 		static uint32_t hash(const MaterialKey &p_key) {
-			return hash_djb2_one_32(p_key.key);
+			return hash_murmur3_one_32(p_key.key);
 		}
 		bool operator==(const MaterialKey &p_key) const {
 			return key == p_key.key;
@@ -117,7 +117,7 @@ private:
 
 protected:
 	static void _bind_methods();
-	void _validate_property(PropertyInfo &property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 
 public:
 	void set_blend_mode(BlendMode p_blend_mode);

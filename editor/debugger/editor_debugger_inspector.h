@@ -30,6 +30,7 @@
 
 #ifndef EDITOR_DEBUGGER_INSPECTOR_H
 #define EDITOR_DEBUGGER_INSPECTOR_H
+
 #include "editor/editor_inspector.h"
 
 class EditorDebuggerRemoteObject : public Object {
@@ -42,7 +43,6 @@ protected:
 	static void _bind_methods();
 
 public:
-	bool editable = false;
 	ObjectID remote_object_id;
 	String type_name;
 	List<PropertyInfo> prop_list;

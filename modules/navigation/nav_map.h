@@ -34,15 +34,15 @@
 #include "nav_rid.h"
 
 #include "core/math/math_defs.h"
+#include "core/object/worker_thread_pool.h"
 #include "core/templates/rb_map.h"
-#include "core/templates/thread_work_pool.h"
 #include "nav_utils.h"
 
 #include <KdTree.h>
 
+class NavLink;
 class NavRegion;
 class RvoAgent;
-class NavRegion;
 
 class NavMap : public NavRid {
 	/// Map Up
@@ -55,13 +55,21 @@ class NavMap : public NavRid {
 	/// This value is used to detect the near edges to connect.
 	real_t edge_connection_margin = 0.25;
 
+	/// This value is used to limit how far links search to find polygons to connect to.
+	real_t link_connection_radius = 1.0;
+
 	bool regenerate_polygons = true;
 	bool regenerate_links = true;
 
-	std::vector<NavRegion *> regions;
+	/// Map regions
+	LocalVector<NavRegion *> regions;
+
+	/// Map links
+	LocalVector<NavLink *> links;
+	LocalVector<gd::Polygon> link_polygons;
 
 	/// Map polygons
-	std::vector<gd::Polygon> polygons;
+	LocalVector<gd::Polygon> polygons;
 
 	/// Rvo world
 	RVO::KdTree rvo;
@@ -70,19 +78,16 @@ class NavMap : public NavRid {
 	bool agents_dirty = false;
 
 	/// All the Agents (even the controlled one)
-	std::vector<RvoAgent *> agents;
+	LocalVector<RvoAgent *> agents;
 
 	/// Controlled agents
-	std::vector<RvoAgent *> controlled_agents;
+	LocalVector<RvoAgent *> controlled_agents;
 
 	/// Physics delta time
 	real_t deltatime = 0.0;
 
 	/// Change the id each time the map is updated.
 	uint32_t map_update_id = 0;
-
-	/// Pooled threads for computing steps
-	ThreadWorkPool step_work_pool;
 
 public:
 	NavMap();
@@ -103,6 +108,11 @@ public:
 		return edge_connection_margin;
 	}
 
+	void set_link_connection_radius(float p_link_connection_radius);
+	float get_link_connection_radius() const {
+		return link_connection_radius;
+	}
+
 	gd::PointKey get_point_key(const Vector3 &p_pos) const;
 
 	Vector<Vector3> get_path(Vector3 p_origin, Vector3 p_destination, bool p_optimize, uint32_t p_navigation_layers = 1) const;
@@ -114,14 +124,20 @@ public:
 
 	void add_region(NavRegion *p_region);
 	void remove_region(NavRegion *p_region);
-	const std::vector<NavRegion *> &get_regions() const {
+	const LocalVector<NavRegion *> &get_regions() const {
 		return regions;
+	}
+
+	void add_link(NavLink *p_link);
+	void remove_link(NavLink *p_link);
+	const LocalVector<NavLink *> &get_links() const {
+		return links;
 	}
 
 	bool has_agent(RvoAgent *agent) const;
 	void add_agent(RvoAgent *agent);
 	void remove_agent(RvoAgent *agent);
-	const std::vector<RvoAgent *> &get_agents() const {
+	const LocalVector<RvoAgent *> &get_agents() const {
 		return agents;
 	}
 
@@ -138,7 +154,7 @@ public:
 
 private:
 	void compute_single_step(uint32_t index, RvoAgent **agent);
-	void clip_path(const std::vector<gd::NavigationPoly> &p_navigation_polys, Vector<Vector3> &path, const gd::NavigationPoly *from_poly, const Vector3 &p_to_point, const gd::NavigationPoly *p_to_poly) const;
+	void clip_path(const LocalVector<gd::NavigationPoly> &p_navigation_polys, Vector<Vector3> &path, const gd::NavigationPoly *from_poly, const Vector3 &p_to_point, const gd::NavigationPoly *p_to_poly) const;
 };
 
 #endif // NAV_MAP_H

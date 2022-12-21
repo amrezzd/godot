@@ -108,6 +108,15 @@ Error ResourceFormatImporter::_get_path_and_type(const String &p_path, PathAndTy
 		}
 	}
 
+#ifdef TOOLS_ENABLED
+	if (r_path_and_type.metadata && !r_path_and_type.path.is_empty()) {
+		Dictionary meta = r_path_and_type.metadata;
+		if (meta.has("has_editor_variant")) {
+			r_path_and_type.path = r_path_and_type.path.get_basename() + ".editor." + r_path_and_type.path.get_extension();
+		}
+	}
+#endif
+
 	if (r_path_and_type.path.is_empty() || r_path_and_type.type.is_empty()) {
 		return ERR_FILE_CORRUPT;
 	}
@@ -352,6 +361,16 @@ Variant ResourceFormatImporter::get_resource_metadata(const String &p_path) cons
 
 	return pat.metadata;
 }
+void ResourceFormatImporter::get_classes_used(const String &p_path, HashSet<StringName> *r_classes) {
+	PathAndType pat;
+	Error err = _get_path_and_type(p_path, pat);
+
+	if (err != OK) {
+		return;
+	}
+
+	ResourceLoader::get_classes_used(pat.path, r_classes);
+}
 
 void ResourceFormatImporter::get_dependencies(const String &p_path, List<String> *p_dependencies, bool p_add_types) {
 	PathAndType pat;
@@ -411,7 +430,7 @@ Ref<ResourceImporter> ResourceFormatImporter::get_importer_by_extension(const St
 }
 
 String ResourceFormatImporter::get_import_base_path(const String &p_for_file) const {
-	return ProjectSettings::get_singleton()->get_imported_files_path().plus_file(p_for_file.get_file() + "-" + p_for_file.md5_text());
+	return ProjectSettings::get_singleton()->get_imported_files_path().path_join(p_for_file.get_file() + "-" + p_for_file.md5_text());
 }
 
 bool ResourceFormatImporter::are_import_settings_valid(const String &p_path) const {

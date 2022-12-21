@@ -44,7 +44,7 @@ void EditorDirDialog::_update_dir(TreeItem *p_item, EditorFileSystemDirectory *p
 
 	p_item->set_metadata(0, p_dir->get_path());
 	p_item->set_icon(0, tree->get_theme_icon(SNAME("Folder"), SNAME("EditorIcons")));
-	p_item->set_icon_modulate(0, tree->get_theme_color(SNAME("folder_icon_modulate"), SNAME("FileDialog")));
+	p_item->set_icon_modulate(0, tree->get_theme_color(SNAME("folder_icon_color"), SNAME("FileDialog")));
 
 	if (!p_item->get_parent()) {
 		p_item->set_text(0, "res://");
@@ -57,7 +57,7 @@ void EditorDirDialog::_update_dir(TreeItem *p_item, EditorFileSystemDirectory *p
 	}
 
 	//this should be handled by EditorFileSystem already
-	//bool show_hidden = EditorSettings::get_singleton()->get("filesystem/file_dialog/show_hidden_files");
+	//bool show_hidden = EDITOR_GET("filesystem/file_dialog/show_hidden_files");
 	updating = false;
 	for (int i = 0; i < p_dir->get_subdir_count(); i++) {
 		TreeItem *ti = tree->create_item(p_item);
@@ -81,15 +81,15 @@ void EditorDirDialog::reload(const String &p_path) {
 void EditorDirDialog::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
-			EditorFileSystem::get_singleton()->connect("filesystem_changed", callable_mp(this, &EditorDirDialog::reload), make_binds(""));
+			EditorFileSystem::get_singleton()->connect("filesystem_changed", callable_mp(this, &EditorDirDialog::reload).bind(""));
 			reload();
 
 			if (!tree->is_connected("item_collapsed", callable_mp(this, &EditorDirDialog::_item_collapsed))) {
-				tree->connect("item_collapsed", callable_mp(this, &EditorDirDialog::_item_collapsed), varray(), CONNECT_DEFERRED);
+				tree->connect("item_collapsed", callable_mp(this, &EditorDirDialog::_item_collapsed), CONNECT_DEFERRED);
 			}
 
 			if (!EditorFileSystem::get_singleton()->is_connected("filesystem_changed", callable_mp(this, &EditorDirDialog::reload))) {
-				EditorFileSystem::get_singleton()->connect("filesystem_changed", callable_mp(this, &EditorDirDialog::reload), make_binds(""));
+				EditorFileSystem::get_singleton()->connect("filesystem_changed", callable_mp(this, &EditorDirDialog::reload).bind(""));
 			}
 		} break;
 
@@ -172,7 +172,7 @@ void EditorDirDialog::_make_dir_confirm() {
 		mkdirerr->popup_centered(Size2(250, 80) * EDSCALE);
 	} else {
 		opened_paths.insert(dir);
-		//reload(dir.plus_file(makedirname->get_text()));
+		//reload(dir.path_join(makedirname->get_text()));
 		EditorFileSystem::get_singleton()->scan_changes(); //we created a dir, so rescan changes
 	}
 	makedirname->set_text(""); // reset label
@@ -211,5 +211,5 @@ EditorDirDialog::EditorDirDialog() {
 	mkdirerr->set_text(TTR("Could not create folder."));
 	add_child(mkdirerr);
 
-	get_ok_button()->set_text(TTR("Choose"));
+	set_ok_button_text(TTR("Choose"));
 }

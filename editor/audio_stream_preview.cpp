@@ -42,6 +42,10 @@ float AudioStreamPreview::get_max(float p_time, float p_time_next) const {
 	}
 
 	int max = preview.size() / 2;
+	if (max == 0) {
+		return 0;
+	}
+
 	int time_from = p_time / length * max;
 	int time_to = p_time_next / length * max;
 	time_from = CLAMP(time_from, 0, max - 1);
@@ -69,6 +73,10 @@ float AudioStreamPreview::get_min(float p_time, float p_time_next) const {
 	}
 
 	int max = preview.size() / 2;
+	if (max == 0) {
+		return 0;
+	}
+
 	int time_from = p_time / length * max;
 	int time_to = p_time_next / length * max;
 	time_from = CLAMP(time_from, 0, max - 1);
@@ -153,6 +161,8 @@ void AudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
 		singleton->call_deferred(SNAME("_update_emit"), preview->id);
 	}
 
+	preview->preview->version++;
+
 	preview->playback->stop();
 
 	preview->generating.clear();
@@ -171,7 +181,7 @@ Ref<AudioStreamPreview> AudioStreamPreviewGenerator::generate_preview(const Ref<
 
 	Preview *preview = &previews[p_stream->get_instance_id()];
 	preview->base_stream = p_stream;
-	preview->playback = preview->base_stream->instance_playback();
+	preview->playback = preview->base_stream->instantiate_playback();
 	preview->generating.set();
 	preview->id = p_stream->get_instance_id();
 
@@ -198,6 +208,7 @@ Ref<AudioStreamPreview> AudioStreamPreviewGenerator::generate_preview(const Ref<
 
 	if (preview->playback.is_valid()) {
 		preview->thread = memnew(Thread);
+		preview->thread->set_name("AudioStreamPreviewGenerator");
 		preview->thread->start(_preview_thread, preview);
 	}
 

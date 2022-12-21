@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef NAVIGATION_OBSTACLE_H
-#define NAVIGATION_OBSTACLE_H
+#ifndef NAVIGATION_OBSTACLE_3D_H
+#define NAVIGATION_OBSTACLE_3D_H
 
 #include "scene/3d/node_3d.h"
 
@@ -37,15 +37,17 @@ class NavigationObstacle3D : public Node {
 	GDCLASS(NavigationObstacle3D, Node);
 
 	Node3D *parent_node3d = nullptr;
+
 	RID agent;
 	RID map_before_pause;
+	RID map_override;
 
 	bool estimate_radius = true;
 	real_t radius = 1.0;
 
 protected:
 	static void _bind_methods();
-	void _validate_property(PropertyInfo &p_property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 	void _notification(int p_what);
 
 public:
@@ -56,6 +58,11 @@ public:
 		return agent;
 	}
 
+	void set_agent_parent(Node *p_agent_parent);
+
+	void set_navigation_map(RID p_navigation_map);
+	RID get_navigation_map() const;
+
 	void set_estimate_radius(bool p_estimate_radius);
 	bool is_radius_estimated() const {
 		return estimate_radius;
@@ -65,7 +72,7 @@ public:
 		return radius;
 	}
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 private:
 	void initialize_agent();
@@ -73,4 +80,4 @@ private:
 	real_t estimate_agent_radius() const;
 };
 
-#endif
+#endif // NAVIGATION_OBSTACLE_3D_H

@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef OPENXR_ACTION_SETS_H
-#define OPENXR_ACTION_SETS_H
+#ifndef OPENXR_ACTION_MAP_H
+#define OPENXR_ACTION_MAP_H
 
 #include "core/io/resource.h"
 
@@ -71,12 +71,12 @@ public:
 
 	// Helper functions for editor
 	Ref<OpenXRAction> get_action(const String p_path) const; // Retrieve an action using <action name>/<action> as our parameter
-	void remove_action(const String p_path); // Remove action from action set, also removes it from interaction profiles
-	PackedStringArray get_top_level_paths(Ref<OpenXRAction> p_action); // Determines the top level paths based on where an action is bound in interaction profiles
+	void remove_action(const String p_path, bool p_remove_interaction_profiles = false); // Remove action from action set, also removes it from interaction profiles
+	PackedStringArray get_top_level_paths(const Ref<OpenXRAction> p_action); // Determines the top level paths based on where an action is bound in interaction profiles
 
 	// TODO add validation to display in the interface that checks if we have action sets with the same name or if we have interaction profiles for the same path
 
 	~OpenXRActionMap();
 };
 
-#endif // !OPENXR_ACTION_SETS_H
+#endif // OPENXR_ACTION_MAP_H

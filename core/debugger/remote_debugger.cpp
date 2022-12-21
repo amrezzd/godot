@@ -39,89 +39,6 @@
 #include "core/object/script_language.h"
 #include "core/os/os.h"
 
-class RemoteDebugger::MultiplayerProfiler : public EngineProfiler {
-	struct BandwidthFrame {
-		uint32_t timestamp;
-		int packet_size;
-	};
-
-	int bandwidth_in_ptr = 0;
-	Vector<BandwidthFrame> bandwidth_in;
-	int bandwidth_out_ptr = 0;
-	Vector<BandwidthFrame> bandwidth_out;
-	uint64_t last_bandwidth_time = 0;
-
-	int bandwidth_usage(const Vector<BandwidthFrame> &p_buffer, int p_pointer) {
-		ERR_FAIL_COND_V(p_buffer.size() == 0, 0);
-		int total_bandwidth = 0;
-
-		uint64_t timestamp = OS::get_singleton()->get_ticks_msec();
-		uint64_t final_timestamp = timestamp - 1000;
-
-		int i = (p_pointer + p_buffer.size() - 1) % p_buffer.size();
-
-		while (i != p_pointer && p_buffer[i].packet_size > 0) {
-			if (p_buffer[i].timestamp < final_timestamp) {
-				return total_bandwidth;
-			}
-			total_bandwidth += p_buffer[i].packet_size;
-			i = (i + p_buffer.size() - 1) % p_buffer.size();
-		}
-
-		ERR_FAIL_COND_V_MSG(i == p_pointer, total_bandwidth, "Reached the end of the bandwidth profiler buffer, values might be inaccurate.");
-		return total_bandwidth;
-	}
-
-public:
-	void toggle(bool p_enable, const Array &p_opts) {
-		if (!p_enable) {
-			bandwidth_in.clear();
-			bandwidth_out.clear();
-		} else {
-			bandwidth_in_ptr = 0;
-			bandwidth_in.resize(16384); // ~128kB
-			for (int i = 0; i < bandwidth_in.size(); ++i) {
-				bandwidth_in.write[i].packet_size = -1;
-			}
-			bandwidth_out_ptr = 0;
-			bandwidth_out.resize(16384); // ~128kB
-			for (int i = 0; i < bandwidth_out.size(); ++i) {
-				bandwidth_out.write[i].packet_size = -1;
-			}
-		}
-	}
-
-	void add(const Array &p_data) {
-		ERR_FAIL_COND(p_data.size() < 3);
-		const String inout = p_data[0];
-		int time = p_data[1];
-		int size = p_data[2];
-		if (inout == "in") {
-			bandwidth_in.write[bandwidth_in_ptr].timestamp = time;
-			bandwidth_in.write[bandwidth_in_ptr].packet_size = size;
-			bandwidth_in_ptr = (bandwidth_in_ptr + 1) % bandwidth_in.size();
-		} else if (inout == "out") {
-			bandwidth_out.write[bandwidth_out_ptr].timestamp = time;
-			bandwidth_out.write[bandwidth_out_ptr].packet_size = size;
-			bandwidth_out_ptr = (bandwidth_out_ptr + 1) % bandwidth_out.size();
-		}
-	}
-
-	void tick(double p_frame_time, double p_process_time, double p_physics_time, double p_physics_frame_time) {
-		uint64_t pt = OS::get_singleton()->get_ticks_msec();
-		if (pt - last_bandwidth_time > 200) {
-			last_bandwidth_time = pt;
-			int incoming_bandwidth = bandwidth_usage(bandwidth_in, bandwidth_in_ptr);
-			int outgoing_bandwidth = bandwidth_usage(bandwidth_out, bandwidth_out_ptr);
-
-			Array arr;
-			arr.push_back(incoming_bandwidth);
-			arr.push_back(outgoing_bandwidth);
-			EngineDebugger::get_singleton()->send_message("multiplayer:bandwidth", arr);
-		}
-	}
-};
-
 class RemoteDebugger::PerformanceProfiler : public EngineProfiler {
 	Object *performance = nullptr;
 	int last_perf_time = 0;
@@ -208,7 +125,7 @@ void RemoteDebugger::_err_handler(void *p_this, const char *p_func, const char *
 	rd->script_debugger->send_error(String::utf8(p_func), String::utf8(p_file), p_line, String::utf8(p_err), String::utf8(p_descr), p_editor_notify, p_type, si);
 }
 
-void RemoteDebugger::_print_handler(void *p_this, const String &p_string, bool p_error) {
+void RemoteDebugger::_print_handler(void *p_this, const String &p_string, bool p_error, bool p_rich) {
 	RemoteDebugger *rd = static_cast<RemoteDebugger *>(p_this);
 
 	if (rd->flushing && Thread::get_caller_id() == rd->flush_thread) { // Can't handle recursive prints during flush.
@@ -237,7 +154,13 @@ void RemoteDebugger::_print_handler(void *p_this, const String &p_string, bool p
 
 		OutputString output_string;
 		output_string.message = s;
-		output_string.type = p_error ? MESSAGE_TYPE_ERROR : MESSAGE_TYPE_LOG;
+		if (p_error) {
+			output_string.type = MESSAGE_TYPE_ERROR;
+		} else if (p_rich) {
+			output_string.type = MESSAGE_TYPE_LOG_RICH;
+		} else {
+			output_string.type = MESSAGE_TYPE_LOG;
+		}
 		rd->output_strings.push_back(output_string);
 
 		if (overflowed) {
@@ -291,6 +214,14 @@ void RemoteDebugger::flush_output() {
 				}
 				strings.push_back(output_string.message);
 				types.push_back(MESSAGE_TYPE_ERROR);
+			} else if (output_string.type == MESSAGE_TYPE_LOG_RICH) {
+				if (!joined_log_strings.is_empty()) {
+					strings.push_back(String("\n").join(joined_log_strings));
+					types.push_back(MESSAGE_TYPE_LOG_RICH);
+					joined_log_strings.clear();
+				}
+				strings.push_back(output_string.message);
+				types.push_back(MESSAGE_TYPE_LOG_RICH);
 			} else {
 				joined_log_strings.push_back(output_string.message);
 			}
@@ -438,6 +369,9 @@ void RemoteDebugger::debug(bool p_can_continue, bool p_is_error_breakpoint) {
 	msg.push_back(error_str);
 	ERR_FAIL_COND(!script_lang);
 	msg.push_back(script_lang->debug_get_stack_level_count() > 0);
+	if (allow_focus_steal_fn) {
+		allow_focus_steal_fn();
+	}
 	send_message("debug_enter", msg);
 
 	Input::MouseMode mouse_mode = Input::get_singleton()->get_mouse_mode();
@@ -641,10 +575,6 @@ RemoteDebugger::RemoteDebugger(Ref<RemoteDebuggerPeer> p_peer) {
 	max_chars_per_second = GLOBAL_GET("network/limits/debugger/max_chars_per_second");
 	max_errors_per_second = GLOBAL_GET("network/limits/debugger/max_errors_per_second");
 	max_warnings_per_second = GLOBAL_GET("network/limits/debugger/max_warnings_per_second");
-
-	// Multiplayer Profiler
-	multiplayer_profiler.instantiate();
-	multiplayer_profiler->bind("multiplayer");
 
 	// Performance Profiler
 	Object *perf = Engine::get_singleton()->get_singleton_object("Performance");

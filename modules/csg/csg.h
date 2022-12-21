@@ -39,7 +39,6 @@
 #include "core/object/ref_counted.h"
 #include "core/templates/list.h"
 #include "core/templates/oa_hash_map.h"
-#include "core/templates/rb_map.h"
 #include "core/templates/vector.h"
 #include "scene/resources/material.h"
 
@@ -130,9 +129,9 @@ struct CSGBrushOperation {
 
 		struct VertexKeyHash {
 			static _FORCE_INLINE_ uint32_t hash(const VertexKey &p_vk) {
-				uint32_t h = hash_djb2_one_32(p_vk.x);
-				h = hash_djb2_one_32(p_vk.y, h);
-				h = hash_djb2_one_32(p_vk.z, h);
+				uint32_t h = hash_murmur3_one_32(p_vk.x);
+				h = hash_murmur3_one_32(p_vk.y, h);
+				h = hash_murmur3_one_32(p_vk.z, h);
 				return h;
 			}
 		};

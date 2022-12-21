@@ -74,9 +74,9 @@ public:
 	real_t get_margin() const;
 	void set_margin(real_t p_margin);
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 	CollisionPolygon3D();
 };
 
-#endif // COLLISION_POLYGON_H
+#endif // COLLISION_POLYGON_3D_H

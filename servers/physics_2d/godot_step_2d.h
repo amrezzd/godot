@@ -33,8 +33,8 @@
 
 #include "godot_space_2d.h"
 
+#include "core/object/worker_thread_pool.h"
 #include "core/templates/local_vector.h"
-#include "core/templates/thread_work_pool.h"
 
 class GodotStep2D {
 	uint64_t _step = 1;
@@ -42,14 +42,12 @@ class GodotStep2D {
 	int iterations = 0;
 	real_t delta = 0.0;
 
-	ThreadWorkPool work_pool;
-
 	LocalVector<LocalVector<GodotBody2D *>> body_islands;
 	LocalVector<LocalVector<GodotConstraint2D *>> constraint_islands;
 	LocalVector<GodotConstraint2D *> all_constraints;
 
 	void _populate_island(GodotBody2D *p_body, LocalVector<GodotBody2D *> &p_body_island, LocalVector<GodotConstraint2D *> &p_constraint_island);
-	void _setup_contraint(uint32_t p_constraint_index, void *p_userdata = nullptr);
+	void _setup_constraint(uint32_t p_constraint_index, void *p_userdata = nullptr);
 	void _pre_solve_island(LocalVector<GodotConstraint2D *> &p_constraint_island) const;
 	void _solve_island(uint32_t p_island_index, void *p_userdata = nullptr) const;
 	void _check_suspend(LocalVector<GodotBody2D *> &p_body_island) const;

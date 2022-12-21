@@ -33,8 +33,6 @@
 
 #include "scene/resources/mesh.h"
 
-class Mesh;
-
 class NavigationMesh : public Resource {
 	GDCLASS(NavigationMesh, Resource);
 
@@ -60,7 +58,7 @@ class NavigationMesh : public Resource {
 
 protected:
 	static void _bind_methods();
-	virtual void _validate_property(PropertyInfo &property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 
 #ifndef DISABLE_DEPRECATED
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -86,7 +84,7 @@ public:
 	};
 
 	enum SourceGeometryMode {
-		SOURCE_GEOMETRY_NAVMESH_CHILDREN = 0,
+		SOURCE_GEOMETRY_ROOT_NODE_CHILDREN = 0,
 		SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN,
 		SOURCE_GEOMETRY_GROUPS_EXPLICIT,
 		SOURCE_GEOMETRY_MAX
@@ -103,7 +101,7 @@ protected:
 	float region_merge_size = 20.0f;
 	float edge_max_length = 12.0f;
 	float edge_max_error = 1.3f;
-	float verts_per_poly = 6.0f;
+	float vertices_per_polygon = 6.0f;
 	float detail_sample_distance = 6.0f;
 	float detail_sample_max_error = 1.0f;
 
@@ -111,12 +109,14 @@ protected:
 	ParsedGeometryType parsed_geometry_type = PARSED_GEOMETRY_MESH_INSTANCES;
 	uint32_t collision_mask = 0xFFFFFFFF;
 
-	SourceGeometryMode source_geometry_mode = SOURCE_GEOMETRY_NAVMESH_CHILDREN;
-	StringName source_group_name = "navmesh";
+	SourceGeometryMode source_geometry_mode = SOURCE_GEOMETRY_ROOT_NODE_CHILDREN;
+	StringName source_group_name = "navigation_mesh_source_group";
 
 	bool filter_low_hanging_obstacles = false;
 	bool filter_ledge_spans = false;
 	bool filter_walkable_low_height_spans = false;
+	AABB filter_baking_aabb;
+	Vector3 filter_baking_aabb_offset;
 
 public:
 	// Recast settings
@@ -168,8 +168,8 @@ public:
 	void set_edge_max_error(float p_value);
 	float get_edge_max_error() const;
 
-	void set_verts_per_poly(float p_value);
-	float get_verts_per_poly() const;
+	void set_vertices_per_polygon(float p_value);
+	float get_vertices_per_polygon() const;
 
 	void set_detail_sample_distance(float p_value);
 	float get_detail_sample_distance() const;
@@ -186,6 +186,12 @@ public:
 	void set_filter_walkable_low_height_spans(bool p_value);
 	bool get_filter_walkable_low_height_spans() const;
 
+	void set_filter_baking_aabb(const AABB &p_aabb);
+	AABB get_filter_baking_aabb() const;
+
+	void set_filter_baking_aabb_offset(const Vector3 &p_aabb_offset);
+	Vector3 get_filter_baking_aabb_offset() const;
+
 	void create_from_mesh(const Ref<Mesh> &p_mesh);
 
 	void set_vertices(const Vector<Vector3> &p_vertices);
@@ -196,7 +202,9 @@ public:
 	Vector<int> get_polygon(int p_idx);
 	void clear_polygons();
 
-	Ref<Mesh> get_debug_mesh();
+#ifdef DEBUG_ENABLED
+	Ref<ArrayMesh> get_debug_mesh();
+#endif // DEBUG_ENABLED
 
 	NavigationMesh();
 };

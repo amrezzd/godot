@@ -70,6 +70,17 @@ public:
 		MENU_MAX
 	};
 
+	enum VirtualKeyboardType {
+		KEYBOARD_TYPE_DEFAULT,
+		KEYBOARD_TYPE_MULTILINE,
+		KEYBOARD_TYPE_NUMBER,
+		KEYBOARD_TYPE_NUMBER_DECIMAL,
+		KEYBOARD_TYPE_PHONE,
+		KEYBOARD_TYPE_EMAIL_ADDRESS,
+		KEYBOARD_TYPE_PASSWORD,
+		KEYBOARD_TYPE_URL
+	};
+
 private:
 	HorizontalAlignment alignment = HORIZONTAL_ALIGNMENT_LEFT;
 
@@ -84,7 +95,7 @@ private:
 	String text;
 	String placeholder;
 	String placeholder_translated;
-	String secret_character = "*";
+	String secret_character = U"•";
 	String ime_text;
 	Point2 ime_selection;
 
@@ -102,10 +113,9 @@ private:
 	bool caret_mid_grapheme_enabled = true;
 
 	int caret_column = 0;
-	int scroll_offset = 0;
+	float scroll_offset = 0.0;
 	int max_length = 0; // 0 for no maximum.
 
-	Dictionary opentype_features;
 	String language;
 	TextDirection text_direction = TEXT_DIRECTION_AUTO;
 	TextDirection input_direction = TEXT_DIRECTION_LTR;
@@ -121,6 +131,7 @@ private:
 	bool shortcut_keys_enabled = true;
 
 	bool virtual_keyboard_enabled = true;
+	VirtualKeyboardType virtual_keyboard_type = KEYBOARD_TYPE_DEFAULT;
 
 	bool middle_mouse_paste_enabled = true;
 
@@ -142,8 +153,7 @@ private:
 
 	struct TextOperation {
 		int caret_column = 0;
-		int scroll_offset = 0;
-		int cached_width = 0;
+		float scroll_offset = 0.0;
 		String text;
 	};
 	List<TextOperation> undo_stack;
@@ -160,9 +170,37 @@ private:
 	bool caret_blink_enabled = false;
 	bool caret_force_displayed = false;
 	bool draw_caret = true;
-	Timer *caret_blink_timer = nullptr;
+	float caret_blink_interval = 0.65;
+	double caret_blink_timer = 0.0;
+	bool caret_can_draw = false;
 
-	bool _is_over_clear_button(const Point2 &p_pos) const;
+	bool pending_select_all_on_focus = false;
+	bool select_all_on_focus = false;
+
+	struct ThemeCache {
+		Ref<StyleBox> normal;
+		Ref<StyleBox> read_only;
+		Ref<StyleBox> focus;
+
+		Ref<Font> font;
+		int font_size = 0;
+		Color font_color;
+		Color font_uneditable_color;
+		Color font_selected_color;
+		int font_outline_size;
+		Color font_outline_color;
+		Color font_placeholder_color;
+		int caret_width = 0;
+		Color caret_color;
+		int minimum_character_width = 0;
+		Color selection_color;
+
+		Ref<Texture2D> clear_icon;
+		Color clear_button_color;
+		Color clear_button_color_pressed;
+
+		float base_scale = 1.0;
+	} theme_cache;
 
 	void _clear_undo_stack();
 	void _clear_redo();
@@ -179,14 +217,15 @@ private:
 	void shift_selection_check_post(bool);
 
 	void selection_fill_at_caret();
-	void set_scroll_offset(int p_pos);
-	int get_scroll_offset() const;
+	void set_scroll_offset(float p_pos);
+	float get_scroll_offset() const;
 
 	void set_caret_at_pixel_pos(int p_x);
-	Vector2i get_caret_pixel_pos();
+	Vector2 get_caret_pixel_pos();
 
 	void _reset_caret_blink_timer();
 	void _toggle_draw_caret();
+	void _validate_caret_can_draw();
 
 	void clear_internal();
 
@@ -203,15 +242,14 @@ private:
 	void _ensure_menu();
 
 protected:
+	bool _is_over_clear_button(const Point2 &p_pos) const;
+	virtual void _update_theme_item_cache() override;
 	void _notification(int p_what);
 	static void _bind_methods();
 	virtual void unhandled_key_input(const Ref<InputEvent> &p_event) override;
 	virtual void gui_input(const Ref<InputEvent> &p_event) override;
 
-	bool _set(const StringName &p_name, const Variant &p_value);
-	bool _get(const StringName &p_name, Variant &r_ret) const;
-	void _get_property_list(List<PropertyInfo> *p_list) const;
-	void _validate_property(PropertyInfo &property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 
 public:
 	void set_horizontal_alignment(HorizontalAlignment p_alignment);
@@ -246,10 +284,6 @@ public:
 	void set_text_direction(TextDirection p_text_direction);
 	TextDirection get_text_direction() const;
 
-	void set_opentype_feature(const String &p_name, int p_value);
-	int get_opentype_feature(const String &p_name) const;
-	void clear_opentype_features();
-
 	void set_language(const String &p_language);
 	String get_language() const;
 
@@ -280,8 +314,8 @@ public:
 	bool is_caret_blink_enabled() const;
 	void set_caret_blink_enabled(const bool p_enabled);
 
-	float get_caret_blink_speed() const;
-	void set_caret_blink_speed(const float p_speed);
+	float get_caret_blink_interval() const;
+	void set_caret_blink_interval(const float p_interval);
 
 	void set_caret_force_displayed(const bool p_enabled);
 	bool is_caret_force_displayed() const;
@@ -317,6 +351,9 @@ public:
 	void set_virtual_keyboard_enabled(bool p_enable);
 	bool is_virtual_keyboard_enabled() const;
 
+	void set_virtual_keyboard_type(VirtualKeyboardType p_type);
+	VirtualKeyboardType get_virtual_keyboard_type() const;
+
 	void set_middle_mouse_paste_enabled(bool p_enabled);
 	bool is_middle_mouse_paste_enabled() const;
 
@@ -332,6 +369,10 @@ public:
 	void set_flat(bool p_enabled);
 	bool is_flat() const;
 
+	void set_select_all_on_focus(bool p_enabled);
+	bool is_select_all_on_focus() const;
+	void clear_pending_select_all_on_focus(); // For other controls, e.g. SpinBox.
+
 	virtual bool is_text_field() const override;
 
 	void show_virtual_keyboard();
@@ -341,5 +382,6 @@ public:
 };
 
 VARIANT_ENUM_CAST(LineEdit::MenuItems);
+VARIANT_ENUM_CAST(LineEdit::VirtualKeyboardType);
 
-#endif
+#endif // LINE_EDIT_H

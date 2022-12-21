@@ -28,12 +28,14 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef NAVIGATION_AGENT_H
-#define NAVIGATION_AGENT_H
+#ifndef NAVIGATION_AGENT_3D_H
+#define NAVIGATION_AGENT_3D_H
 
 #include "scene/main/node.h"
 
 class Node3D;
+class NavigationPathQueryParameters3D;
+class NavigationPathQueryResult3D;
 
 class NavigationAgent3D : public Node {
 	GDCLASS(NavigationAgent3D, Node);
@@ -47,11 +49,12 @@ class NavigationAgent3D : public Node {
 	bool avoidance_enabled = false;
 	uint32_t navigation_layers = 1;
 
+	real_t path_desired_distance = 1.0;
 	real_t target_desired_distance = 1.0;
 	real_t radius = 0.0;
 	real_t navigation_height_offset = 0.0;
 	bool ignore_y = false;
-	real_t neighbor_dist = 0.0;
+	real_t neighbor_distance = 0.0;
 	int max_neighbors = 0;
 	real_t time_horizon = 0.0;
 	real_t max_speed = 0.0;
@@ -59,8 +62,9 @@ class NavigationAgent3D : public Node {
 	real_t path_max_distance = 3.0;
 
 	Vector3 target_location;
-	Vector<Vector3> navigation_path;
-	int nav_path_index = 0;
+	Ref<NavigationPathQueryParameters3D> navigation_query;
+	Ref<NavigationPathQueryResult3D> navigation_result;
+	int navigation_path_index = 0;
 	bool velocity_submitted = false;
 	Vector3 prev_safe_velocity;
 	/// The submitted target velocity
@@ -90,8 +94,16 @@ public:
 	void set_navigation_layers(uint32_t p_navigation_layers);
 	uint32_t get_navigation_layers() const;
 
+	void set_navigation_layer_value(int p_layer_number, bool p_value);
+	bool get_navigation_layer_value(int p_layer_number) const;
+
 	void set_navigation_map(RID p_navigation_map);
 	RID get_navigation_map() const;
+
+	void set_path_desired_distance(real_t p_dd);
+	real_t get_path_desired_distance() const {
+		return path_desired_distance;
+	}
 
 	void set_target_desired_distance(real_t p_dd);
 	real_t get_target_desired_distance() const {
@@ -113,9 +125,9 @@ public:
 		return ignore_y;
 	}
 
-	void set_neighbor_dist(real_t p_dist);
-	real_t get_neighbor_dist() const {
-		return neighbor_dist;
+	void set_neighbor_distance(real_t p_distance);
+	real_t get_neighbor_distance() const {
+		return neighbor_distance;
 	}
 
 	void set_max_neighbors(int p_count);
@@ -141,12 +153,10 @@ public:
 
 	Vector3 get_next_location();
 
-	Vector<Vector3> get_nav_path() const {
-		return navigation_path;
-	}
+	const Vector<Vector3> &get_current_navigation_path() const;
 
-	int get_nav_path_index() const {
-		return nav_path_index;
+	int get_current_navigation_path_index() const {
+		return navigation_path_index;
 	}
 
 	real_t distance_to_target() const;
@@ -158,7 +168,7 @@ public:
 	void set_velocity(Vector3 p_velocity);
 	void _avoidance_done(Vector3 p_new_velocity);
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 private:
 	void update_navigation();
@@ -166,4 +176,4 @@ private:
 	void _check_distance_to_target();
 };
 
-#endif
+#endif // NAVIGATION_AGENT_3D_H

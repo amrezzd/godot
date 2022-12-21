@@ -30,10 +30,13 @@
 
 #include "tiles_editor_plugin.h"
 
+#include "tile_set_editor.h"
+
 #include "core/os/mutex.h"
 
 #include "editor/editor_node.h"
 #include "editor/editor_scale.h"
+#include "editor/editor_settings.h"
 #include "editor/plugins/canvas_item_editor_plugin.h"
 
 #include "scene/2d/tile_map.h"
@@ -42,8 +45,6 @@
 #include "scene/gui/control.h"
 #include "scene/gui/separator.h"
 #include "scene/resources/tile_set.h"
-
-#include "tile_set_editor.h"
 
 TilesEditorPlugin *TilesEditorPlugin::singleton = nullptr;
 
@@ -66,12 +67,14 @@ void TilesEditorPlugin::_thread() {
 		pattern_preview_sem.wait();
 
 		pattern_preview_mutex.lock();
-		if (pattern_preview_queue.size()) {
+		if (pattern_preview_queue.size() == 0) {
+			pattern_preview_mutex.unlock();
+		} else {
 			QueueItem item = pattern_preview_queue.front()->get();
 			pattern_preview_queue.pop_front();
 			pattern_preview_mutex.unlock();
 
-			int thumbnail_size = EditorSettings::get_singleton()->get("filesystem/file_dialog/thumbnail_size");
+			int thumbnail_size = EDITOR_GET("filesystem/file_dialog/thumbnail_size");
 			thumbnail_size *= EDSCALE;
 			Vector2 thumbnail_size2 = Vector2(thumbnail_size, thumbnail_size);
 
@@ -90,11 +93,11 @@ void TilesEditorPlugin::_thread() {
 
 				TypedArray<Vector2i> used_cells = tile_map->get_used_cells(0);
 
-				Rect2 encompassing_rect = Rect2();
-				encompassing_rect.set_position(tile_map->map_to_world(used_cells[0]));
+				Rect2 encompassing_rect;
+				encompassing_rect.set_position(tile_map->map_to_local(used_cells[0]));
 				for (int i = 0; i < used_cells.size(); i++) {
 					Vector2i cell = used_cells[i];
-					Vector2 world_pos = tile_map->map_to_world(cell);
+					Vector2 world_pos = tile_map->map_to_local(cell);
 					encompassing_rect.expand_to(world_pos);
 
 					// Texture.
@@ -116,25 +119,20 @@ void TilesEditorPlugin::_thread() {
 				// Add the viewport at the last moment to avoid rendering too early.
 				EditorNode::get_singleton()->add_child(viewport);
 
-				RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<TilesEditorPlugin *>(this), &TilesEditorPlugin::_preview_frame_started), Vector<Variant>(), Object::CONNECT_ONESHOT);
+				RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<TilesEditorPlugin *>(this), &TilesEditorPlugin::_preview_frame_started), Object::CONNECT_ONE_SHOT);
 
 				pattern_preview_done.wait();
 
 				Ref<Image> image = viewport->get_texture()->get_image();
-				Ref<ImageTexture> image_texture;
-				image_texture.instantiate();
-				image_texture->create_from_image(image);
 
 				// Find the index for the given pattern. TODO: optimize.
-				Variant args[] = { item.pattern, image_texture };
+				Variant args[] = { item.pattern, ImageTexture::create_from_image(image) };
 				const Variant *args_ptr[] = { &args[0], &args[1] };
 				Variant r;
 				Callable::CallError error;
-				item.callback.call(args_ptr, 2, r, error);
+				item.callback.callp(args_ptr, 2, r, error);
 
-				viewport->queue_delete();
-			} else {
-				pattern_preview_mutex.unlock();
+				viewport->queue_free();
 			}
 		}
 	}
@@ -157,6 +155,9 @@ void TilesEditorPlugin::_update_editors() {
 
 	// Update the viewport.
 	CanvasItemEditor::get_singleton()->update_viewport();
+
+	// Make sure the tile set editor is visible if we have one assigned.
+	tileset_editor_button->set_visible(is_visible && tile_set.is_valid());
 
 	// Update visibility of bottom panel buttons.
 	if (tileset_editor_button->is_pressed() && !tile_set.is_valid()) {
@@ -184,12 +185,14 @@ void TilesEditorPlugin::_notification(int p_what) {
 }
 
 void TilesEditorPlugin::make_visible(bool p_visible) {
-	if (p_visible) {
+	is_visible = p_visible;
+
+	if (is_visible) {
 		// Disable and hide invalid editors.
 		TileMap *tile_map = Object::cast_to<TileMap>(ObjectDB::get_instance(tile_map_id));
 		tileset_editor_button->set_visible(tile_set.is_valid());
 		tilemap_editor_button->set_visible(tile_map);
-		if (tile_map) {
+		if (tile_map && !is_editing_tile_set) {
 			EditorNode::get_singleton()->make_bottom_panel_item_visible(tilemap_editor);
 		} else {
 			EditorNode::get_singleton()->make_bottom_panel_item_visible(tileset_editor);
@@ -229,14 +232,14 @@ void TilesEditorPlugin::synchronize_sources_list(Object *p_current_list, Object 
 	}
 
 	if (item_list->is_visible_in_tree()) {
+		// Make sure the selection is not overwritten after sorting.
+		int atlas_sources_lists_current_mem = atlas_sources_lists_current;
+		item_list->emit_signal(SNAME("sort_request"));
+		atlas_sources_lists_current = atlas_sources_lists_current_mem;
+
 		if (atlas_sources_lists_current < 0 || atlas_sources_lists_current >= item_list->get_item_count()) {
 			item_list->deselect_all();
 		} else {
-			// Make sure the selection is not overwritten after sorting.
-			int atlas_sources_lists_current_mem = atlas_sources_lists_current;
-			item_list->emit_signal(SNAME("sort_request"));
-			atlas_sources_lists_current = atlas_sources_lists_current_mem;
-
 			item_list->set_current(atlas_sources_lists_current);
 			item_list->ensure_current_is_visible();
 			item_list->emit_signal(SNAME("item_selected"), atlas_sources_lists_current);
@@ -262,12 +265,12 @@ void TilesEditorPlugin::set_sorting_option(int p_option) {
 	source_sort = p_option;
 }
 
-List<int> TilesEditorPlugin::get_sorted_sources(const Ref<TileSet> tile_set) const {
-	SourceNameComparator::tile_set = tile_set;
+List<int> TilesEditorPlugin::get_sorted_sources(const Ref<TileSet> p_tile_set) const {
+	SourceNameComparator::tile_set = p_tile_set;
 	List<int> source_ids;
 
-	for (int i = 0; i < tile_set->get_source_count(); i++) {
-		source_ids.push_back(tile_set->get_source_id(i));
+	for (int i = 0; i < p_tile_set->get_source_count(); i++) {
+		source_ids.push_back(p_tile_set->get_source_id(i));
 	}
 
 	switch (source_sort) {
@@ -348,6 +351,8 @@ void TilesEditorPlugin::edit(Object *p_object) {
 
 	// Update edited objects.
 	tile_set = Ref<TileSet>();
+	is_editing_tile_set = false;
+
 	if (p_object) {
 		if (p_object->is_class("TileMap")) {
 			tile_map_id = p_object->get_instance_id();
@@ -362,6 +367,7 @@ void TilesEditorPlugin::edit(Object *p_object) {
 					tile_map_id = ObjectID();
 				}
 			}
+			is_editing_tile_set = true;
 			EditorNode::get_singleton()->make_bottom_panel_item_visible(tileset_editor);
 		}
 	}
@@ -377,6 +383,15 @@ void TilesEditorPlugin::edit(Object *p_object) {
 
 bool TilesEditorPlugin::handles(Object *p_object) const {
 	return p_object->is_class("TileMap") || p_object->is_class("TileSet");
+}
+
+void TilesEditorPlugin::draw_selection_rect(CanvasItem *p_ci, const Rect2 &p_rect, const Color &p_color) {
+	real_t scale = p_ci->get_global_transform().get_scale().x * 0.5;
+	p_ci->draw_set_transform(p_rect.position, 0, Vector2(1, 1) / scale);
+	RS::get_singleton()->canvas_item_add_nine_patch(
+			p_ci->get_canvas_item(), Rect2(Vector2(), p_rect.size * scale), Rect2(), EditorNode::get_singleton()->get_gui_base()->get_theme_icon(SNAME("TileSelection"), SNAME("EditorIcons"))->get_rid(),
+			Vector2(2, 2), Vector2(2, 2), RS::NINE_PATCH_STRETCH, RS::NINE_PATCH_STRETCH, false, p_color);
+	p_ci->draw_set_transform_matrix(Transform2D());
 }
 
 TilesEditorPlugin::TilesEditorPlugin() {

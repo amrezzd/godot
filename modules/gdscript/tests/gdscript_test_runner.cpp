@@ -36,6 +36,7 @@
 #include "../gdscript_parser.h"
 
 #include "core/config/project_settings.h"
+#include "core/core_globals.h"
 #include "core/core_string_names.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access_pack.h"
@@ -70,27 +71,38 @@ void init_autoloads() {
 			continue;
 		}
 
-		Ref<Resource> res = ResourceLoader::load(info.path);
-		ERR_CONTINUE_MSG(res.is_null(), "Can't autoload: " + info.path);
 		Node *n = nullptr;
-		Ref<PackedScene> scn = res;
-		Ref<Script> script = res;
-		if (scn.is_valid()) {
-			n = scn->instantiate();
-		} else if (script.is_valid()) {
-			StringName ibt = script->get_instance_base_type();
-			bool valid_type = ClassDB::is_parent_class(ibt, "Node");
-			ERR_CONTINUE_MSG(!valid_type, "Script does not inherit from Node: " + info.path);
+		if (ResourceLoader::get_resource_type(info.path) == "PackedScene") {
+			// Cache the scene reference before loading it (for cyclic references)
+			Ref<PackedScene> scn;
+			scn.instantiate();
+			scn->set_path(info.path);
+			scn->reload_from_file();
+			ERR_CONTINUE_MSG(!scn.is_valid(), vformat("Can't autoload: %s.", info.path));
 
-			Object *obj = ClassDB::instantiate(ibt);
+			if (scn.is_valid()) {
+				n = scn->instantiate();
+			}
+		} else {
+			Ref<Resource> res = ResourceLoader::load(info.path);
+			ERR_CONTINUE_MSG(res.is_null(), vformat("Can't autoload: %s.", info.path));
 
-			ERR_CONTINUE_MSG(!obj, "Cannot instance script for autoload, expected 'Node' inheritance, got: " + String(ibt) + ".");
+			Ref<Script> scr = res;
+			if (scr.is_valid()) {
+				StringName ibt = scr->get_instance_base_type();
+				bool valid_type = ClassDB::is_parent_class(ibt, "Node");
+				ERR_CONTINUE_MSG(!valid_type, vformat("Script does not inherit from Node: %s.", info.path));
 
-			n = Object::cast_to<Node>(obj);
-			n->set_script(script);
+				Object *obj = ClassDB::instantiate(ibt);
+
+				ERR_CONTINUE_MSG(!obj, vformat("Cannot instance script for Autoload, expected 'Node' inheritance, got: %s.", ibt));
+
+				n = Object::cast_to<Node>(obj);
+				n->set_script(scr);
+			}
 		}
 
-		ERR_CONTINUE_MSG(!n, "Path in autoload not a node or script: " + info.path);
+		ERR_CONTINUE_MSG(!n, vformat("Path in autoload not a node or script: %s.", info.path));
 		n->set_name(info.name);
 
 		for (int i = 0; i < ScriptServer::get_language_count(); i++) {
@@ -142,8 +154,8 @@ GDScriptTestRunner::GDScriptTestRunner(const String &p_source_dir, bool p_init_l
 #endif
 
 	// Enable printing to show results
-	_print_line_enabled = true;
-	_print_error_enabled = true;
+	CoreGlobals::print_line_enabled = true;
+	CoreGlobals::print_error_enabled = true;
 }
 
 GDScriptTestRunner::~GDScriptTestRunner() {
@@ -246,15 +258,18 @@ bool GDScriptTestRunner::make_tests_for_dir(const String &p_dir) {
 				next = dir->get_next();
 				continue;
 			}
-			if (!make_tests_for_dir(current_dir.plus_file(next))) {
+			if (!make_tests_for_dir(current_dir.path_join(next))) {
 				return false;
 			}
 		} else {
-			if (next.get_extension().to_lower() == "gd") {
+			if (next.ends_with(".notest.gd")) {
+				next = dir->get_next();
+				continue;
+			} else if (next.get_extension().to_lower() == "gd") {
 #ifndef DEBUG_ENABLED
 				// On release builds, skip tests marked as debug only.
 				Error open_err = OK;
-				Ref<FileAccess> script_file(FileAccess::open(current_dir.plus_file(next), FileAccess::READ, &open_err));
+				Ref<FileAccess> script_file(FileAccess::open(current_dir.path_join(next), FileAccess::READ, &open_err));
 				if (open_err != OK) {
 					ERR_PRINT(vformat(R"(Couldn't open test file "%s".)", next));
 					next = dir->get_next();
@@ -271,7 +286,7 @@ bool GDScriptTestRunner::make_tests_for_dir(const String &p_dir) {
 				if (!is_generating && !dir->file_exists(out_file)) {
 					ERR_FAIL_V_MSG(false, "Could not find output file for " + next);
 				}
-				GDScriptTest test(current_dir.plus_file(next), current_dir.plus_file(out_file), source_dir);
+				GDScriptTest test(current_dir.path_join(next), current_dir.path_join(out_file), source_dir);
 				tests.push_back(test);
 			}
 		}
@@ -363,7 +378,7 @@ void GDScriptTest::disable_stdout() {
 	OS::get_singleton()->set_stderr_enabled(false);
 }
 
-void GDScriptTest::print_handler(void *p_this, const String &p_message, bool p_error) {
+void GDScriptTest::print_handler(void *p_this, const String &p_message, bool p_error, bool p_rich) {
 	TestResult *result = (TestResult *)p_this;
 	result->output += p_message + "\n";
 }
@@ -460,7 +475,6 @@ GDScriptTest::TestResult GDScriptTest::execute_test_code(bool p_is_generating) {
 	Ref<GDScript> script;
 	script.instantiate();
 	script->set_path(source_file);
-	script->set_script_path(source_file);
 	err = script->load_source_code(source_file);
 	if (err != OK) {
 		enable_stdout();
@@ -478,9 +492,9 @@ GDScriptTest::TestResult GDScriptTest::execute_test_code(bool p_is_generating) {
 		result.output = get_text_for_status(result.status) + "\n";
 
 		const List<GDScriptParser::ParserError> &errors = parser.get_errors();
-		for (const GDScriptParser::ParserError &E : errors) {
-			result.output += E.message + "\n"; // TODO: line, column?
-			break; // Only the first error since the following might be cascading.
+		if (!errors.is_empty()) {
+			// Only the first error since the following might be cascading.
+			result.output += errors[0].message + "\n"; // TODO: line, column?
 		}
 		if (!p_is_generating) {
 			result.passed = check_output(result.output);
@@ -497,9 +511,9 @@ GDScriptTest::TestResult GDScriptTest::execute_test_code(bool p_is_generating) {
 		result.output = get_text_for_status(result.status) + "\n";
 
 		const List<GDScriptParser::ParserError> &errors = parser.get_errors();
-		for (const GDScriptParser::ParserError &E : errors) {
-			result.output += E.message + "\n"; // TODO: line, column?
-			break; // Only the first error since the following might be cascading.
+		if (!errors.is_empty()) {
+			// Only the first error since the following might be cascading.
+			result.output += errors[0].message + "\n"; // TODO: line, column?
 		}
 		if (!p_is_generating) {
 			result.passed = check_output(result.output);
@@ -597,6 +611,9 @@ GDScriptTest::TestResult GDScriptTest::execute_test_code(bool p_is_generating) {
 	}
 
 	enable_stdout();
+
+	GDScriptCache::remove_script(script->get_path());
+
 	return result;
 }
 

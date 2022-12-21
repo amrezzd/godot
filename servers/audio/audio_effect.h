@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef AUDIOEFFECT_H
-#define AUDIOEFFECT_H
+#ifndef AUDIO_EFFECT_H
+#define AUDIO_EFFECT_H
 
 #include "core/io/resource.h"
 #include "core/math/audio_frame.h"
@@ -41,7 +41,7 @@ class AudioEffectInstance : public RefCounted {
 	GDCLASS(AudioEffectInstance, RefCounted);
 
 protected:
-	GDVIRTUAL3(_process, GDNativeConstPtr<AudioFrame>, GDNativePtr<AudioFrame>, int)
+	GDVIRTUAL3(_process, GDExtensionConstPtr<AudioFrame>, GDExtensionPtr<AudioFrame>, int)
 	GDVIRTUAL0RC(bool, _process_silence)
 	static void _bind_methods();
 
@@ -62,4 +62,4 @@ public:
 	AudioEffect();
 };
 
-#endif // AUDIOEFFECT_H
+#endif // AUDIO_EFFECT_H

@@ -28,13 +28,17 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef PARTICLES_EDITOR_PLUGIN_H
-#define PARTICLES_EDITOR_PLUGIN_H
+#ifndef GPU_PARTICLES_3D_EDITOR_PLUGIN_H
+#define GPU_PARTICLES_3D_EDITOR_PLUGIN_H
 
 #include "editor/editor_plugin.h"
 #include "scene/3d/gpu_particles_3d.h"
 #include "scene/gui/spin_box.h"
 
+class ConfirmationDialog;
+class HBoxContainer;
+class MenuButton;
+class OptionButton;
 class SceneTreeDialog;
 
 class GPUParticles3DEditorBase : public Control {
@@ -114,4 +118,4 @@ public:
 	~GPUParticles3DEditorPlugin();
 };
 
-#endif // PARTICLES_EDITOR_PLUGIN_H
+#endif // GPU_PARTICLES_3D_EDITOR_PLUGIN_H

@@ -158,7 +158,7 @@ Error _create_project_name_strings_files(const Ref<EditorExportPreset> &p_preset
 		return ERR_CANT_OPEN;
 	}
 	da->list_dir_begin();
-	Dictionary appnames = ProjectSettings::get_singleton()->get("application/config/name_localized");
+	Dictionary appnames = GLOBAL_GET("application/config/name_localized");
 	while (true) {
 		String file = da->get_next();
 		if (file.is_empty()) {
@@ -189,9 +189,7 @@ String bool_to_string(bool v) {
 }
 
 String _get_gles_tag() {
-	bool min_gles3 = ProjectSettings::get_singleton()->get("rendering/driver/driver_name") == "GLES3" &&
-			!ProjectSettings::get_singleton()->get("rendering/driver/fallback_to_gles2");
-	return min_gles3 ? "    <uses-feature android:glEsVersion=\"0x00030000\" android:required=\"true\" />\n" : "";
+	return "    <uses-feature android:glEsVersion=\"0x00030000\" android:required=\"true\" />\n";
 }
 
 String _get_screen_sizes_tag(const Ref<EditorExportPreset> &p_preset) {
@@ -254,7 +252,7 @@ String _get_activity_tag(const Ref<EditorExportPreset> &p_preset) {
 	return manifest_activity_text;
 }
 
-String _get_application_tag(const Ref<EditorExportPreset> &p_preset, bool p_has_storage_permission) {
+String _get_application_tag(const Ref<EditorExportPreset> &p_preset, bool p_has_read_write_storage_permission) {
 	int xr_mode_index = (int)(p_preset->get("xr_features/xr_mode"));
 	bool uses_xr = xr_mode_index == XR_MODE_OPENXR;
 	String manifest_application_text = vformat(
@@ -271,7 +269,7 @@ String _get_application_tag(const Ref<EditorExportPreset> &p_preset, bool p_has_
 			bool_to_string(p_preset->get("user_data_backup/allow")),
 			bool_to_string(p_preset->get("package/classify_as_game")),
 			bool_to_string(p_preset->get("package/retain_data_on_uninstall")),
-			bool_to_string(p_has_storage_permission));
+			bool_to_string(p_has_read_write_storage_permission));
 
 	if (uses_xr) {
 		bool hand_tracking_enabled = (int)(p_preset->get("xr_features/hand_tracking")) > XR_HAND_TRACKING_NONE;

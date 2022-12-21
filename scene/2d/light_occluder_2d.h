@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef LIGHTOCCLUDER2D_H
-#define LIGHTOCCLUDER2D_H
+#ifndef LIGHT_OCCLUDER_2D_H
+#define LIGHT_OCCLUDER_2D_H
 
 #include "scene/2d/node_2d.h"
 
@@ -105,10 +105,10 @@ public:
 	void set_as_sdf_collision(bool p_enable);
 	bool is_set_as_sdf_collision() const;
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 	LightOccluder2D();
 	~LightOccluder2D();
 };
 
-#endif // LIGHTOCCLUDER2D_H
+#endif // LIGHT_OCCLUDER_2D_H

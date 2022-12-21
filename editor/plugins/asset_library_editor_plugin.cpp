@@ -32,6 +32,7 @@
 
 #include "core/input/input.h"
 #include "core/io/json.h"
+#include "core/io/stream_peer_tls.h"
 #include "core/os/keyboard.h"
 #include "core/version.h"
 #include "editor/editor_file_dialog.h"
@@ -40,6 +41,12 @@
 #include "editor/editor_scale.h"
 #include "editor/editor_settings.h"
 #include "editor/project_settings_editor.h"
+#include "scene/gui/menu_button.h"
+
+#include "modules/modules_enabled.gen.h" // For svg.
+#ifdef MODULE_SVG_ENABLED
+#include "modules/svg/image_loader_svg.h"
+#endif
 
 static inline void setup_http_request(HTTPRequest *request) {
 	request->set_use_threads(EDITOR_DEF("asset_library/use_threads", true));
@@ -64,13 +71,13 @@ void EditorAssetLibraryItem::set_image(int p_type, int p_index, const Ref<Textur
 	ERR_FAIL_COND(p_type != EditorAssetLibrary::IMAGE_QUEUE_ICON);
 	ERR_FAIL_COND(p_index != 0);
 
-	icon->set_normal_texture(p_image);
+	icon->set_texture_normal(p_image);
 }
 
 void EditorAssetLibraryItem::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
-			icon->set_normal_texture(get_theme_icon(SNAME("ProjectIconLoading"), SNAME("EditorIcons")));
+			icon->set_texture_normal(get_theme_icon(SNAME("ProjectIconLoading"), SNAME("EditorIcons")));
 			category->add_theme_color_override("font_color", Color(0.5, 0.5, 0.5));
 			author->add_theme_color_override("font_color", Color(0.5, 0.5, 0.5));
 			price->add_theme_color_override("font_color", Color(0.5, 0.5, 0.5));
@@ -100,10 +107,7 @@ void EditorAssetLibraryItem::_bind_methods() {
 EditorAssetLibraryItem::EditorAssetLibraryItem() {
 	Ref<StyleBoxEmpty> border;
 	border.instantiate();
-	border->set_default_margin(SIDE_LEFT, 5 * EDSCALE);
-	border->set_default_margin(SIDE_RIGHT, 5 * EDSCALE);
-	border->set_default_margin(SIDE_BOTTOM, 5 * EDSCALE);
-	border->set_default_margin(SIDE_TOP, 5 * EDSCALE);
+	border->set_default_margin_all(5 * EDSCALE);
 	add_theme_style_override("panel", border);
 
 	HBoxContainer *hb = memnew(HBoxContainer);
@@ -160,18 +164,13 @@ void EditorAssetLibraryItemDescription::set_image(int p_type, int p_index, const
 						Ref<Image> overlay = previews->get_theme_icon(SNAME("PlayOverlay"), SNAME("EditorIcons"))->get_image();
 						Ref<Image> thumbnail = p_image->get_image();
 						thumbnail = thumbnail->duplicate();
-						Point2 overlay_pos = Point2((thumbnail->get_width() - overlay->get_width()) / 2, (thumbnail->get_height() - overlay->get_height()) / 2);
+						Point2i overlay_pos = Point2i((thumbnail->get_width() - overlay->get_width()) / 2, (thumbnail->get_height() - overlay->get_height()) / 2);
 
 						// Overlay and thumbnail need the same format for `blend_rect` to work.
 						thumbnail->convert(Image::FORMAT_RGBA8);
-
 						thumbnail->blend_rect(overlay, overlay->get_used_rect(), overlay_pos);
+						preview_images[i].button->set_icon(ImageTexture::create_from_image(thumbnail));
 
-						Ref<ImageTexture> tex;
-						tex.instantiate();
-						tex->create_from_image(thumbnail);
-
-						preview_images[i].button->set_icon(tex);
 						// Make it clearer that clicking it will open an external link
 						preview_images[i].button->set_default_cursor_shape(Control::CURSOR_POINTING_HAND);
 					} else {
@@ -250,19 +249,19 @@ void EditorAssetLibraryItemDescription::configure(const String &p_title, int p_a
 }
 
 void EditorAssetLibraryItemDescription::add_preview(int p_id, bool p_video, const String &p_url) {
-	Preview preview;
-	preview.id = p_id;
-	preview.video_link = p_url;
-	preview.is_video = p_video;
-	preview.button = memnew(Button);
-	preview.button->set_icon(previews->get_theme_icon(SNAME("ThumbnailWait"), SNAME("EditorIcons")));
-	preview.button->set_toggle_mode(true);
-	preview.button->connect("pressed", callable_mp(this, &EditorAssetLibraryItemDescription::_preview_click), varray(p_id));
-	preview_hb->add_child(preview.button);
+	Preview new_preview;
+	new_preview.id = p_id;
+	new_preview.video_link = p_url;
+	new_preview.is_video = p_video;
+	new_preview.button = memnew(Button);
+	new_preview.button->set_icon(previews->get_theme_icon(SNAME("ThumbnailWait"), SNAME("EditorIcons")));
+	new_preview.button->set_toggle_mode(true);
+	new_preview.button->connect("pressed", callable_mp(this, &EditorAssetLibraryItemDescription::_preview_click).bind(p_id));
+	preview_hb->add_child(new_preview.button);
 	if (!p_video) {
-		preview.image = previews->get_theme_icon(SNAME("ThumbnailWait"), SNAME("EditorIcons"));
+		new_preview.image = previews->get_theme_icon(SNAME("ThumbnailWait"), SNAME("EditorIcons"));
 	}
-	preview_images.push_back(preview);
+	preview_images.push_back(new_preview);
 	if (preview_images.size() == 1 && !p_video) {
 		_preview_click(p_id);
 	}
@@ -290,12 +289,15 @@ EditorAssetLibraryItemDescription::EditorAssetLibraryItemDescription() {
 	hbox->add_child(previews_vbox);
 	previews_vbox->add_theme_constant_override("separation", 15 * EDSCALE);
 	previews_vbox->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	previews_vbox->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
 	preview = memnew(TextureRect);
 	previews_vbox->add_child(preview);
 	preview->set_ignore_texture_size(true);
 	preview->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 	preview->set_custom_minimum_size(Size2(640 * EDSCALE, 345 * EDSCALE));
+	preview->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	preview->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
 	previews_bg = memnew(PanelContainer);
 	previews_vbox->add_child(previews_bg);
@@ -308,8 +310,8 @@ EditorAssetLibraryItemDescription::EditorAssetLibraryItemDescription() {
 	preview_hb->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 
 	previews->add_child(preview_hb);
-	get_ok_button()->set_text(TTR("Download"));
-	get_cancel_button()->set_text(TTR("Close"));
+	set_ok_button_text(TTR("Download"));
+	set_cancel_button_text(TTR("Close"));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -325,7 +327,7 @@ void EditorAssetLibraryItemDownload::_http_download_completed(int p_status, int 
 			status->set_text(TTR("Can't connect."));
 		} break;
 		case HTTPRequest::RESULT_CANT_CONNECT:
-		case HTTPRequest::RESULT_SSL_HANDSHAKE_ERROR: {
+		case HTTPRequest::RESULT_TLS_HANDSHAKE_ERROR: {
 			error_text = TTR("Can't connect to host:") + " " + host;
 			status->set_text(TTR("Can't connect."));
 		} break;
@@ -406,7 +408,7 @@ void EditorAssetLibraryItemDownload::_notification(int p_what) {
 		case NOTIFICATION_THEME_CHANGED: {
 			panel->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), SNAME("AssetLib")));
 			status->add_theme_color_override("font_color", get_theme_color(SNAME("status_color"), SNAME("AssetLib")));
-			dismiss_button->set_normal_texture(get_theme_icon(SNAME("dismiss"), SNAME("AssetLib")));
+			dismiss_button->set_texture_normal(get_theme_icon(SNAME("dismiss"), SNAME("AssetLib")));
 		} break;
 
 		case NOTIFICATION_PROCESS: {
@@ -464,7 +466,7 @@ void EditorAssetLibraryItemDownload::_notification(int p_what) {
 void EditorAssetLibraryItemDownload::_close() {
 	// Clean up downloaded file.
 	DirAccess::remove_file_or_error(download->get_download_file());
-	queue_delete();
+	queue_free();
 }
 
 bool EditorAssetLibraryItemDownload::can_install() const {
@@ -488,7 +490,7 @@ void EditorAssetLibraryItemDownload::_make_request() {
 	retry_button->hide();
 
 	download->cancel_request();
-	download->set_download_file(EditorPaths::get_singleton()->get_cache_dir().plus_file("tmp_asset_" + itos(asset_id)) + ".zip");
+	download->set_download_file(EditorPaths::get_singleton()->get_cache_dir().path_join("tmp_asset_" + itos(asset_id)) + ".zip");
 
 	Error err = download->request(host);
 	if (err != OK) {
@@ -578,24 +580,26 @@ void EditorAssetLibrary::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_READY: {
 			add_theme_style_override("panel", get_theme_stylebox(SNAME("bg"), SNAME("AssetLib")));
-			error_label->raise();
+			error_label->move_to_front();
 		} break;
 
 		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
 			error_tr->set_texture(get_theme_icon(SNAME("Error"), SNAME("EditorIcons")));
 			filter->set_right_icon(get_theme_icon(SNAME("Search"), SNAME("EditorIcons")));
-			library_scroll_bg->add_theme_style_override("panel", get_theme_stylebox(SNAME("bg"), SNAME("Tree")));
-			downloads_scroll->add_theme_style_override("bg", get_theme_stylebox(SNAME("bg"), SNAME("Tree")));
+			library_scroll_bg->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), SNAME("Tree")));
+			downloads_scroll->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), SNAME("Tree")));
 			error_label->add_theme_color_override("color", get_theme_color(SNAME("error_color"), SNAME("Editor")));
 		} break;
 
 		case NOTIFICATION_VISIBILITY_CHANGED: {
 			if (is_visible()) {
+#ifndef ANDROID_ENABLED
 				// Focus the search box automatically when switching to the Templates tab (in the Project Manager)
 				// or switching to the AssetLib tab (in the editor).
 				// The Project Manager's project filter box is automatically focused in the project manager code.
 				filter->grab_focus();
+#endif
 
 				if (initial_loading) {
 					_repository_changed(0); // Update when shown for the first time.
@@ -618,6 +622,10 @@ void EditorAssetLibrary::_notification(int p_what) {
 				downloads_scroll->set_visible(!no_downloads);
 			}
 
+		} break;
+
+		case NOTIFICATION_RESIZED: {
+			_update_asset_items_columns();
 		} break;
 
 		case EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED: {
@@ -646,7 +654,7 @@ void EditorAssetLibrary::shortcut_input(const Ref<InputEvent> &p_event) {
 	const Ref<InputEventKey> key = p_event;
 
 	if (key.is_valid() && key->is_pressed()) {
-		if (key->get_keycode_with_modifiers() == (KeyModifierMask::CMD | Key::F) && is_visible_in_tree()) {
+		if (key->is_match(InputEventKey::create_reference(KeyModifierMask::CMD_OR_CTRL | Key::F)) && is_visible_in_tree()) {
 			filter->grab_focus();
 			filter->select_all();
 			accept_event();
@@ -727,7 +735,7 @@ void EditorAssetLibrary::_image_update(bool use_cache, bool final, const PackedB
 		PackedByteArray image_data = p_data;
 
 		if (use_cache) {
-			String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().plus_file("assetimage_" + image_queue[p_queue_id].image_url.md5_text());
+			String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().path_join("assetimage_" + image_queue[p_queue_id].image_url.md5_text());
 
 			Ref<FileAccess> file = FileAccess::open(cache_filename_base + ".data", FileAccess::READ);
 			if (file.is_valid()) {
@@ -748,13 +756,30 @@ void EditorAssetLibrary::_image_update(bool use_cache, bool final, const PackedB
 
 		uint8_t png_signature[8] = { 137, 80, 78, 71, 13, 10, 26, 10 };
 		uint8_t jpg_signature[3] = { 255, 216, 255 };
+		uint8_t webp_signature[4] = { 82, 73, 70, 70 };
+		uint8_t bmp_signature[2] = { 66, 77 };
 
 		if (r) {
 			if ((memcmp(&r[0], &png_signature[0], 8) == 0) && Image::_png_mem_loader_func) {
 				image->copy_internals_from(Image::_png_mem_loader_func(r, len));
 			} else if ((memcmp(&r[0], &jpg_signature[0], 3) == 0) && Image::_jpg_mem_loader_func) {
 				image->copy_internals_from(Image::_jpg_mem_loader_func(r, len));
+			} else if ((memcmp(&r[0], &webp_signature[0], 4) == 0) && Image::_webp_mem_loader_func) {
+				image->copy_internals_from(Image::_webp_mem_loader_func(r, len));
+			} else if ((memcmp(&r[0], &bmp_signature[0], 2) == 0) && Image::_bmp_mem_loader_func) {
+				image->copy_internals_from(Image::_bmp_mem_loader_func(r, len));
 			}
+#ifdef MODULE_SVG_ENABLED
+			else {
+				ImageLoaderSVG svg_loader;
+				Ref<Image> img = Ref<Image>(memnew(Image));
+				Error err = svg_loader.create_image_from_utf8_buffer(img, image_data, 1.0, false);
+
+				if (err == OK) {
+					image->copy_internals_from(img);
+				}
+			}
+#endif
 		}
 
 		if (!image->is_empty()) {
@@ -782,9 +807,7 @@ void EditorAssetLibrary::_image_update(bool use_cache, bool final, const PackedB
 				} break;
 			}
 
-			Ref<ImageTexture> tex;
-			tex.instantiate();
-			tex->create_from_image(image);
+			Ref<ImageTexture> tex = ImageTexture::create_from_image(image);
 
 			obj->call("set_image", image_queue[p_queue_id].image_type, image_queue[p_queue_id].image_index, tex);
 			image_set = true;
@@ -803,7 +826,7 @@ void EditorAssetLibrary::_image_request_completed(int p_status, int p_code, cons
 		if (p_code != HTTPClient::RESPONSE_NOT_MODIFIED) {
 			for (int i = 0; i < headers.size(); i++) {
 				if (headers[i].findn("ETag:") == 0) { // Save etag
-					String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().plus_file("assetimage_" + image_queue[p_queue_id].image_url.md5_text());
+					String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().path_join("assetimage_" + image_queue[p_queue_id].image_url.md5_text());
 					String new_etag = headers[i].substr(headers[i].find(":") + 1, headers[i].length()).strip_edges();
 					Ref<FileAccess> file = FileAccess::open(cache_filename_base + ".etag", FileAccess::WRITE);
 					if (file.is_valid()) {
@@ -832,7 +855,7 @@ void EditorAssetLibrary::_image_request_completed(int p_status, int p_code, cons
 		}
 	}
 
-	image_queue[p_queue_id].request->queue_delete();
+	image_queue[p_queue_id].request->queue_free();
 	image_queue.erase(p_queue_id);
 
 	_update_image_queue();
@@ -845,7 +868,7 @@ void EditorAssetLibrary::_update_image_queue() {
 	List<int> to_delete;
 	for (KeyValue<int, ImageQueue> &E : image_queue) {
 		if (!E.value.active && current_images < max_images) {
-			String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().plus_file("assetimage_" + E.value.image_url.md5_text());
+			String cache_filename_base = EditorPaths::get_singleton()->get_cache_dir().path_join("assetimage_" + E.value.image_url.md5_text());
 			Vector<String> headers;
 
 			if (FileAccess::exists(cache_filename_base + ".etag") && FileAccess::exists(cache_filename_base + ".data")) {
@@ -868,7 +891,7 @@ void EditorAssetLibrary::_update_image_queue() {
 	}
 
 	while (to_delete.size()) {
-		image_queue[to_delete.front()->get()].request->queue_delete();
+		image_queue[to_delete.front()->get()].request->queue_free();
 		image_queue.erase(to_delete.front()->get());
 		to_delete.pop_front();
 	}
@@ -886,7 +909,7 @@ void EditorAssetLibrary::_request_image(ObjectID p_for, String p_image_url, Imag
 	iq.queue_id = ++last_queue_id;
 	iq.active = false;
 
-	iq.request->connect("request_completed", callable_mp(this, &EditorAssetLibrary::_image_request_completed), varray(iq.queue_id));
+	iq.request->connect("request_completed", callable_mp(this, &EditorAssetLibrary::_image_request_completed).bind(iq.queue_id));
 
 	image_queue[iq.queue_id] = iq;
 
@@ -1005,7 +1028,7 @@ HBoxContainer *EditorAssetLibrary::_make_pages(int p_page, int p_page_count, int
 	Button *first = memnew(Button);
 	first->set_text(TTR("First", "Pagination"));
 	if (p_page != 0) {
-		first->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search), varray(0));
+		first->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search).bind(0));
 	} else {
 		first->set_disabled(true);
 		first->set_focus_mode(Control::FOCUS_NONE);
@@ -1015,7 +1038,7 @@ HBoxContainer *EditorAssetLibrary::_make_pages(int p_page, int p_page_count, int
 	Button *prev = memnew(Button);
 	prev->set_text(TTR("Previous", "Pagination"));
 	if (p_page > 0) {
-		prev->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search), varray(p_page - 1));
+		prev->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search).bind(p_page - 1));
 	} else {
 		prev->set_disabled(true);
 		prev->set_focus_mode(Control::FOCUS_NONE);
@@ -1036,7 +1059,7 @@ HBoxContainer *EditorAssetLibrary::_make_pages(int p_page, int p_page_count, int
 			Button *current = memnew(Button);
 			// Add padding to make page number buttons easier to click.
 			current->set_text(vformat(" %d ", i + 1));
-			current->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search), varray(i));
+			current->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search).bind(i));
 
 			hbc->add_child(current);
 		}
@@ -1045,7 +1068,7 @@ HBoxContainer *EditorAssetLibrary::_make_pages(int p_page, int p_page_count, int
 	Button *next = memnew(Button);
 	next->set_text(TTR("Next", "Pagination"));
 	if (p_page < p_page_count - 1) {
-		next->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search), varray(p_page + 1));
+		next->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search).bind(p_page + 1));
 	} else {
 		next->set_disabled(true);
 		next->set_focus_mode(Control::FOCUS_NONE);
@@ -1056,7 +1079,7 @@ HBoxContainer *EditorAssetLibrary::_make_pages(int p_page, int p_page_count, int
 	Button *last = memnew(Button);
 	last->set_text(TTR("Last", "Pagination"));
 	if (p_page != p_page_count - 1) {
-		last->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search), varray(p_page_count - 1));
+		last->connect("pressed", callable_mp(this, &EditorAssetLibrary::_search).bind(p_page_count - 1));
 	} else {
 		last->set_disabled(true);
 		last->set_focus_mode(Control::FOCUS_NONE);
@@ -1099,7 +1122,7 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 		case HTTPRequest::RESULT_CHUNKED_BODY_SIZE_MISMATCH: {
 			error_label->set_text(TTR("Connection error, please try again."));
 		} break;
-		case HTTPRequest::RESULT_SSL_HANDSHAKE_ERROR:
+		case HTTPRequest::RESULT_TLS_HANDSHAKE_ERROR:
 		case HTTPRequest::RESULT_CANT_CONNECT: {
 			error_label->set_text(TTR("Can't connect to host:") + " " + host);
 		} break;
@@ -1209,7 +1232,7 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 			library_vb->add_child(asset_top_page);
 
 			asset_items = memnew(GridContainer);
-			asset_items->set_columns(2);
+			_update_asset_items_columns();
 			asset_items->add_theme_constant_override("h_separation", 10 * EDSCALE);
 			asset_items->add_theme_constant_override("v_separation", 10 * EDSCALE);
 
@@ -1292,14 +1315,14 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 			EditorAssetLibraryItemDownload *download_item = _get_asset_in_progress(description->get_asset_id());
 			if (download_item) {
 				if (download_item->can_install()) {
-					description->get_ok_button()->set_text(TTR("Install"));
+					description->set_ok_button_text(TTR("Install"));
 					description->get_ok_button()->set_disabled(false);
 				} else {
-					description->get_ok_button()->set_text(TTR("Downloading..."));
+					description->set_ok_button_text(TTR("Downloading..."));
 					description->get_ok_button()->set_disabled(true);
 				}
 			} else {
-				description->get_ok_button()->set_text(TTR("Download"));
+				description->set_ok_button_text(TTR("Download"));
 				description->get_ok_button()->set_disabled(false);
 			}
 
@@ -1375,12 +1398,17 @@ void EditorAssetLibrary::_install_external_asset(String p_zip_path, String p_tit
 	emit_signal(SNAME("install_asset"), p_zip_path, p_title);
 }
 
-void EditorAssetLibrary::disable_community_support() {
-	support->get_popup()->set_item_checked(SUPPORT_COMMUNITY, false);
+void EditorAssetLibrary::_update_asset_items_columns() {
+	int new_columns = get_size().x / (450.0 * EDSCALE);
+	new_columns = MAX(1, new_columns);
+
+	if (new_columns != asset_items->get_columns()) {
+		asset_items->set_columns(new_columns);
+	}
 }
 
-void EditorAssetLibrary::set_columns(const int p_columns) {
-	asset_items->set_columns(p_columns);
+void EditorAssetLibrary::disable_community_support() {
+	support->get_popup()->set_item_checked(SUPPORT_COMMUNITY, false);
 }
 
 void EditorAssetLibrary::_bind_methods() {
@@ -1502,10 +1530,7 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
 
 	Ref<StyleBoxEmpty> border2;
 	border2.instantiate();
-	border2->set_default_margin(SIDE_LEFT, 15 * EDSCALE);
-	border2->set_default_margin(SIDE_RIGHT, 35 * EDSCALE);
-	border2->set_default_margin(SIDE_BOTTOM, 15 * EDSCALE);
-	border2->set_default_margin(SIDE_TOP, 15 * EDSCALE);
+	border2->set_default_margin_individual(15 * EDSCALE, 15 * EDSCALE, 35 * EDSCALE, 15 * EDSCALE);
 
 	PanelContainer *library_vb_border = memnew(PanelContainer);
 	library_scroll->add_child(library_vb_border);
@@ -1538,7 +1563,7 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
 	library_vb->add_child(asset_top_page);
 
 	asset_items = memnew(GridContainer);
-	asset_items->set_columns(2);
+	_update_asset_items_columns();
 	asset_items->add_theme_constant_override("h_separation", 10 * EDSCALE);
 	asset_items->add_theme_constant_override("v_separation", 10 * EDSCALE);
 
@@ -1578,7 +1603,7 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
 	asset_open = memnew(EditorFileDialog);
 
 	asset_open->set_access(EditorFileDialog::ACCESS_FILESYSTEM);
-	asset_open->add_filter("*.zip ; " + TTR("Assets ZIP File"));
+	asset_open->add_filter("*.zip", TTR("Assets ZIP File"));
 	asset_open->set_file_mode(EditorFileDialog::FILE_MODE_OPEN_FILE);
 	add_child(asset_open);
 	asset_open->connect("file_selected", callable_mp(this, &EditorAssetLibrary::_asset_file_selected));
@@ -1587,6 +1612,16 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
 }
 
 ///////
+
+bool AssetLibraryEditorPlugin::is_available() {
+#ifdef WEB_ENABLED
+	// Asset Library can't work on Web editor for now as most assets are sourced
+	// directly from GitHub which does not set CORS.
+	return false;
+#else
+	return StreamPeerTLS::is_available();
+#endif
+}
 
 void AssetLibraryEditorPlugin::make_visible(bool p_visible) {
 	if (p_visible) {
@@ -1599,8 +1634,8 @@ void AssetLibraryEditorPlugin::make_visible(bool p_visible) {
 AssetLibraryEditorPlugin::AssetLibraryEditorPlugin() {
 	addon_library = memnew(EditorAssetLibrary);
 	addon_library->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	EditorNode::get_singleton()->get_main_control()->add_child(addon_library);
-	addon_library->set_anchors_and_offsets_preset(Control::PRESET_WIDE);
+	EditorNode::get_singleton()->get_main_screen_control()->add_child(addon_library);
+	addon_library->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
 	addon_library->hide();
 }
 

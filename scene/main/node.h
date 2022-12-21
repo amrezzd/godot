@@ -57,7 +57,7 @@ public:
 		DUPLICATE_SIGNALS = 1,
 		DUPLICATE_GROUPS = 2,
 		DUPLICATE_SCRIPTS = 4,
-		DUPLICATE_USE_INSTANCING = 8,
+		DUPLICATE_USE_INSTANTIATION = 8,
 #ifdef TOOLS_ENABLED
 		DUPLICATE_FROM_EDITOR = 16,
 #endif
@@ -91,6 +91,7 @@ private:
 		SceneTree::Group *group = nullptr;
 	};
 
+	// This Data struct is to avoid namespace pollution in derived classes.
 	struct Data {
 		String scene_file_path;
 		Ref<SceneState> instance_state;
@@ -104,7 +105,7 @@ private:
 
 		int internal_children_front = 0;
 		int internal_children_back = 0;
-		int pos = -1;
+		int index = -1;
 		int depth = -1;
 		int blocked = 0; // Safeguard that throws an error when attempting to modify the tree in a harmful way while being traversed.
 		StringName name;
@@ -127,7 +128,7 @@ private:
 		Node *process_owner = nullptr;
 
 		int multiplayer_authority = 1; // Server by default.
-		Vector<Multiplayer::RPCConfig> rpc_methods;
+		Variant rpc_config;
 
 		// Variables used to properly sort the node when processing, ignored otherwise.
 		// TODO: Should move all the stuff below to bits.
@@ -172,21 +173,21 @@ private:
 	void _propagate_ready();
 	void _propagate_exit_tree();
 	void _propagate_after_exit_tree();
-	void _print_orphan_nodes();
 	void _propagate_process_owner(Node *p_owner, int p_pause_notification, int p_enabled_notification);
+	void _propagate_groups_dirty();
 	Array _get_node_and_resource(const NodePath &p_path);
 
 	void _duplicate_signals(const Node *p_original, Node *p_copy) const;
 	Node *_duplicate(int p_flags, HashMap<const Node *, Node *> *r_duplimap = nullptr) const;
 
 	TypedArray<Node> _get_children(bool p_include_internal = true) const;
-	Array _get_groups() const;
+	TypedArray<StringName> _get_groups() const;
 
-	void _rpc_bind(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
-	void _rpc_id_bind(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
+	Error _rpc_bind(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
+	Error _rpc_id_bind(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
 
-	_FORCE_INLINE_ bool _is_internal_front() const { return data.parent && data.pos < data.parent->data.internal_children_front; }
-	_FORCE_INLINE_ bool _is_internal_back() const { return data.parent && data.pos >= data.parent->data.children.size() - data.parent->data.internal_children_back; }
+	_FORCE_INLINE_ bool _is_internal_front() const { return data.parent && data.index < data.parent->data.internal_children_front; }
+	_FORCE_INLINE_ bool _is_internal_back() const { return data.parent && data.index >= data.parent->data.children.size() - data.parent->data.internal_children_back; }
 
 	friend class SceneTree;
 
@@ -208,6 +209,7 @@ protected:
 	virtual void add_child_notify(Node *p_child);
 	virtual void remove_child_notify(Node *p_child);
 	virtual void move_child_notify(Node *p_child);
+	virtual void owner_changed_notify();
 
 	void _propagate_replace_owner(Node *p_owner, Node *p_by_owner);
 
@@ -257,7 +259,7 @@ public:
 		NOTIFICATION_PROCESS = 17,
 		NOTIFICATION_PARENTED = 18,
 		NOTIFICATION_UNPARENTED = 19,
-		NOTIFICATION_INSTANCED = 20,
+		NOTIFICATION_SCENE_INSTANTIATED = 20,
 		NOTIFICATION_DRAG_BEGIN = 21,
 		NOTIFICATION_DRAG_END = 22,
 		NOTIFICATION_PATH_RENAMED = 23,
@@ -301,8 +303,8 @@ public:
 	StringName get_name() const;
 	void set_name(const String &p_name);
 
-	void add_child(Node *p_child, bool p_legible_unique_name = false, InternalMode p_internal = INTERNAL_MODE_DISABLED);
-	void add_sibling(Node *p_sibling, bool p_legible_unique_name = false);
+	void add_child(Node *p_child, bool p_force_readable_name = false, InternalMode p_internal = INTERNAL_MODE_DISABLED);
+	void add_sibling(Node *p_sibling, bool p_force_readable_name = false);
 	void remove_child(Node *p_child);
 
 	int get_child_count(bool p_include_internal = true) const;
@@ -329,7 +331,7 @@ public:
 	bool is_greater_than(const Node *p_node) const;
 
 	NodePath get_path() const;
-	NodePath get_path_to(const Node *p_node) const;
+	NodePath get_path_to(const Node *p_node, bool p_use_unique_path = false) const;
 	Node *find_common_parent_with(const Node *p_node) const;
 
 	void add_to_group(const StringName &p_identifier, bool p_persistent = false);
@@ -344,9 +346,8 @@ public:
 	void get_groups(List<GroupInfo> *p_groups) const;
 	int get_persistent_group_count() const;
 
-	void move_child(Node *p_child, int p_pos);
-	void _move_child(Node *p_child, int p_pos, bool p_ignore_end = false);
-	void raise();
+	void move_child(Node *p_child, int p_index);
+	void _move_child(Node *p_child, int p_index, bool p_ignore_end = false);
 
 	void set_owner(Node *p_owner);
 	Node *get_owner() const;
@@ -355,7 +356,6 @@ public:
 	void set_unique_name_in_owner(bool p_enabled);
 	bool is_unique_name_in_owner() const;
 
-	void remove_and_skip();
 	int get_index(bool p_include_internal = true) const;
 
 	Ref<Tween> create_tween();
@@ -457,8 +457,9 @@ public:
 #ifdef TOOLS_ENABLED
 	String validate_child_name(Node *p_child);
 #endif
+	static String adjust_name_casing(const String &p_name);
 
-	void queue_delete();
+	void queue_free();
 
 	//hacks for speed
 	static void init_node_hrcr();
@@ -476,7 +477,7 @@ public:
 
 	_FORCE_INLINE_ Viewport *get_viewport() const { return data.viewport; }
 
-	virtual TypedArray<String> get_configuration_warnings() const;
+	virtual PackedStringArray get_configuration_warnings() const;
 	String get_configuration_warnings_as_string() const;
 
 	void update_configuration_warnings();
@@ -489,30 +490,16 @@ public:
 	int get_multiplayer_authority() const;
 	bool is_multiplayer_authority() const;
 
-	uint16_t rpc_config(const StringName &p_method, Multiplayer::RPCMode p_rpc_mode, bool p_call_local = false, Multiplayer::TransferMode p_transfer_mode = Multiplayer::TRANSFER_MODE_RELIABLE, int p_channel = 0); // config a local method for RPC
-	Vector<Multiplayer::RPCConfig> get_node_rpc_methods() const;
+	void rpc_config(const StringName &p_method, const Variant &p_config); // config a local method for RPC
+	const Variant get_node_rpc_config() const;
 
 	template <typename... VarArgs>
-	void rpc(const StringName &p_method, VarArgs... p_args) {
-		Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
-		const Variant *argptrs[sizeof...(p_args) + 1];
-		for (uint32_t i = 0; i < sizeof...(p_args); i++) {
-			argptrs[i] = &args[i];
-		}
-		rpcp(0, p_method, sizeof...(p_args) == 0 ? nullptr : (const Variant **)argptrs, sizeof...(p_args));
-	}
+	Error rpc(const StringName &p_method, VarArgs... p_args);
 
 	template <typename... VarArgs>
-	void rpc_id(int p_peer_id, const StringName &p_method, VarArgs... p_args) {
-		Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
-		const Variant *argptrs[sizeof...(p_args) + 1];
-		for (uint32_t i = 0; i < sizeof...(p_args); i++) {
-			argptrs[i] = &args[i];
-		}
-		rpcp(p_peer_id, p_method, sizeof...(p_args) == 0 ? nullptr : (const Variant **)argptrs, sizeof...(p_args));
-	}
+	Error rpc_id(int p_peer_id, const StringName &p_method, VarArgs... p_args);
 
-	void rpcp(int p_peer_id, const StringName &p_method, const Variant **p_arg, int p_argcount);
+	Error rpcp(int p_peer_id, const StringName &p_method, const Variant **p_arg, int p_argcount);
 
 	Ref<MultiplayerAPI> get_multiplayer() const;
 
@@ -524,4 +511,26 @@ VARIANT_ENUM_CAST(Node::DuplicateFlags);
 
 typedef HashSet<Node *, Node::Comparator> NodeSet;
 
-#endif
+// Template definitions must be in the header so they are always fully initialized before their usage.
+// See this StackOverflow question for more information: https://stackoverflow.com/questions/495021/why-can-templates-only-be-implemented-in-the-header-file
+
+template <typename... VarArgs>
+Error Node::rpc(const StringName &p_method, VarArgs... p_args) {
+	return rpc_id(0, p_method, p_args...);
+}
+
+template <typename... VarArgs>
+Error Node::rpc_id(int p_peer_id, const StringName &p_method, VarArgs... p_args) {
+	Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
+	const Variant *argptrs[sizeof...(p_args) + 1];
+	for (uint32_t i = 0; i < sizeof...(p_args); i++) {
+		argptrs[i] = &args[i];
+	}
+	return rpcp(p_peer_id, p_method, sizeof...(p_args) == 0 ? nullptr : (const Variant **)argptrs, sizeof...(p_args));
+}
+
+// Add these macro to your class's 'get_configuration_warnings' function to have warnings show up in the scene tree inspector.
+#define DEPRECATED_NODE_WARNING warnings.push_back(RTR("This node is marked as deprecated and will be removed in future versions.\nPlease check the Godot documentation for information about migration."));
+#define EXPERIMENTAL_NODE_WARNING warnings.push_back(RTR("This node is marked as experimental and may be subject to removal or major changes in future versions."));
+
+#endif // NODE_H

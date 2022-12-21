@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef ITEMLIST_H
-#define ITEMLIST_H
+#ifndef ITEM_LIST_H
+#define ITEM_LIST_H
 
 #include "scene/gui/control.h"
 #include "scene/gui/scroll_bar.h"
@@ -58,7 +58,6 @@ private:
 		Ref<Texture2D> tag_icon;
 		String text;
 		Ref<TextParagraph> text_buf;
-		Dictionary opentype_features;
 		String language;
 		TextDirection text_direction = TEXT_DIRECTION_AUTO;
 
@@ -110,23 +109,45 @@ private:
 	int max_columns = 1;
 
 	Size2 fixed_icon_size;
-
 	Size2 max_item_size_cache;
 
 	int defer_select_single = -1;
-
 	bool allow_rmb_select = false;
-
 	bool allow_reselect = false;
 
 	real_t icon_scale = 1.0;
 
 	bool do_autoscroll_to_bottom = false;
 
+	struct ThemeCache {
+		int h_separation = 0;
+		int v_separation = 0;
+
+		Ref<StyleBox> panel_style;
+		Ref<StyleBox> focus_style;
+
+		Ref<Font> font;
+		int font_size = 0;
+		Color font_color;
+		Color font_selected_color;
+		int font_outline_size = 0;
+		Color font_outline_color;
+
+		int line_separation = 0;
+		int icon_margin = 0;
+		Ref<StyleBox> selected_style;
+		Ref<StyleBox> selected_focus_style;
+		Ref<StyleBox> cursor_style;
+		Ref<StyleBox> cursor_focus_style;
+		Color guide_color;
+	} theme_cache;
+
 	void _scroll_changed(double);
 	void _shape(int p_idx);
 
 protected:
+	virtual void _update_theme_item_cache() override;
+
 	void _notification(int p_what);
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -144,10 +165,6 @@ public:
 
 	void set_item_text_direction(int p_idx, TextDirection p_text_direction);
 	TextDirection get_item_text_direction(int p_idx) const;
-
-	void set_item_opentype_feature(int p_idx, const String &p_name, int p_value);
-	int get_item_opentype_feature(int p_idx, const String &p_name) const;
-	void clear_item_opentype_features(int p_idx);
 
 	void set_item_language(int p_idx, const String &p_language);
 	String get_item_language(int p_idx) const;
@@ -227,8 +244,8 @@ public:
 	void set_icon_mode(IconMode p_mode);
 	IconMode get_icon_mode() const;
 
-	void set_fixed_icon_size(const Size2 &p_size);
-	Size2 get_fixed_icon_size() const;
+	void set_fixed_icon_size(const Size2i &p_size);
+	Size2i get_fixed_icon_size() const;
 
 	void set_allow_rmb_select(bool p_allow);
 	bool get_allow_rmb_select() const;
@@ -264,4 +281,4 @@ public:
 VARIANT_ENUM_CAST(ItemList::SelectMode);
 VARIANT_ENUM_CAST(ItemList::IconMode);
 
-#endif // ITEMLIST_H
+#endif // ITEM_LIST_H

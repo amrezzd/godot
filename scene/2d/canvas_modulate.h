@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef CANVASMODULATE_H
-#define CANVASMODULATE_H
+#ifndef CANVAS_MODULATE_H
+#define CANVAS_MODULATE_H
 
 #include "scene/2d/node_2d.h"
 
@@ -46,10 +46,10 @@ public:
 	void set_color(const Color &p_color);
 	Color get_color() const;
 
-	TypedArray<String> get_configuration_warnings() const override;
+	PackedStringArray get_configuration_warnings() const override;
 
 	CanvasModulate();
 	~CanvasModulate();
 };
 
-#endif // CANVASMODULATE_H
+#endif // CANVAS_MODULATE_H

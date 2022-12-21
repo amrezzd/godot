@@ -28,8 +28,10 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef VULKAN_DEVICE_WIN_H
-#define VULKAN_DEVICE_WIN_H
+#ifndef VULKAN_CONTEXT_WIN_H
+#define VULKAN_CONTEXT_WIN_H
+
+#ifdef VULKAN_ENABLED
 
 #include "drivers/vulkan/vulkan_context.h"
 
@@ -40,10 +42,12 @@ class VulkanContextWindows : public VulkanContext {
 	virtual const char *_get_platform_surface_extension() const;
 
 public:
-	int window_create(DisplayServer::WindowID p_window_id, DisplayServer::VSyncMode p_vsync_mode, HWND p_window, HINSTANCE p_instance, int p_width, int p_height);
+	Error window_create(DisplayServer::WindowID p_window_id, DisplayServer::VSyncMode p_vsync_mode, HWND p_window, HINSTANCE p_instance, int p_width, int p_height);
 
 	VulkanContextWindows();
 	~VulkanContextWindows();
 };
 
-#endif // VULKAN_DEVICE_WIN_H
+#endif // VULKAN_ENABLED
+
+#endif // VULKAN_CONTEXT_WIN_H

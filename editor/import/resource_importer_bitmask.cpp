@@ -99,11 +99,11 @@ Error ResourceImporterBitMap::import(const String &p_source_file, const String &
 				bit = c.a > threshold;
 			}
 
-			bitmap->set_bit(Vector2(j, i), bit);
+			bitmap->set_bit(j, i, bit);
 		}
 	}
 
-	return ResourceSaver::save(p_save_path + ".res", bitmap);
+	return ResourceSaver::save(bitmap, p_save_path + ".res");
 }
 
 ResourceImporterBitMap::ResourceImporterBitMap() {

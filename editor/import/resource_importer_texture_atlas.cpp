@@ -88,13 +88,7 @@ Error ResourceImporterTextureAtlas::import(const String &p_source_file, const St
 	//use an xpm because it's size independent, the editor images are vector and size dependent
 	//it's a simple hack
 	Ref<Image> broken = memnew(Image((const char **)atlas_import_failed_xpm));
-	Ref<ImageTexture> broken_texture;
-	broken_texture.instantiate();
-	broken_texture->create_from_image(broken);
-
-	String target_file = p_save_path + ".tex";
-
-	ResourceSaver::save(target_file, broken_texture);
+	ResourceSaver::save(ImageTexture::create_from_image(broken), p_save_path + ".tex");
 
 	return OK;
 }
@@ -218,7 +212,7 @@ Error ResourceImporterTextureAtlas::import_group_file(const String &p_group_file
 
 			EditorAtlasPacker::Chart chart;
 
-			Rect2 used_rect = Rect2(Vector2(), image->get_size());
+			Rect2i used_rect = Rect2i(Vector2i(), image->get_size());
 			if (trim_alpha_border_from_region) {
 				// Clip a region from the image.
 				used_rect = image->get_used_rect();
@@ -226,9 +220,9 @@ Error ResourceImporterTextureAtlas::import_group_file(const String &p_group_file
 			pack_data.region = used_rect;
 
 			chart.vertices.push_back(used_rect.position);
-			chart.vertices.push_back(used_rect.position + Vector2(used_rect.size.x, 0));
-			chart.vertices.push_back(used_rect.position + Vector2(used_rect.size.x, used_rect.size.y));
-			chart.vertices.push_back(used_rect.position + Vector2(0, used_rect.size.y));
+			chart.vertices.push_back(used_rect.position + Vector2i(used_rect.size.x, 0));
+			chart.vertices.push_back(used_rect.position + Vector2i(used_rect.size.x, used_rect.size.y));
+			chart.vertices.push_back(used_rect.position + Vector2i(0, used_rect.size.y));
 			EditorAtlasPacker::Chart::Face f;
 			f.vertex[0] = 0;
 			f.vertex[1] = 1;
@@ -279,9 +273,7 @@ Error ResourceImporterTextureAtlas::import_group_file(const String &p_group_file
 	EditorAtlasPacker::chart_pack(charts, atlas_width, atlas_height);
 
 	//blit the atlas
-	Ref<Image> new_atlas;
-	new_atlas.instantiate();
-	new_atlas->create(atlas_width, atlas_height, false, Image::FORMAT_RGBA8);
+	Ref<Image> new_atlas = Image::create_empty(atlas_width, atlas_height, false, Image::FORMAT_RGBA8);
 
 	for (int i = 0; i < pack_data_files.size(); i++) {
 		PackData &pack_data = pack_data_files.write[i];
@@ -306,13 +298,9 @@ Error ResourceImporterTextureAtlas::import_group_file(const String &p_group_file
 
 	//update cache if existing, else create
 	Ref<Texture2D> cache;
-	if (ResourceCache::has(p_group_file)) {
-		Resource *resptr = ResourceCache::get(p_group_file);
-		cache.reference_ptr(resptr);
-	} else {
-		Ref<ImageTexture> res_cache;
-		res_cache.instantiate();
-		res_cache->create_from_image(new_atlas);
+	cache = ResourceCache::get_ref(p_group_file);
+	if (!cache.is_valid()) {
+		Ref<ImageTexture> res_cache = ImageTexture::create_from_image(new_atlas);
 		res_cache->set_path(p_group_file);
 		cache = res_cache;
 	}
@@ -392,11 +380,10 @@ Error ResourceImporterTextureAtlas::import_group_file(const String &p_group_file
 			mesh_texture->set_mesh(mesh);
 
 			texture = mesh_texture;
-			//mesh
 		}
 
 		String save_path = p_base_paths[E.key] + ".res";
-		ResourceSaver::save(save_path, texture);
+		ResourceSaver::save(texture, save_path);
 		idx++;
 	}
 

@@ -31,8 +31,10 @@
 #include "label_3d.h"
 
 #include "core/core_string_names.h"
+#include "scene/main/viewport.h"
 #include "scene/resources/theme.h"
 #include "scene/scene_string_names.h"
+#include "scene/theme/theme_db.h"
 
 void Label3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_horizontal_alignment", "alignment"), &Label3D::set_horizontal_alignment);
@@ -52,10 +54,6 @@ void Label3D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_text_direction", "direction"), &Label3D::set_text_direction);
 	ClassDB::bind_method(D_METHOD("get_text_direction"), &Label3D::get_text_direction);
-
-	ClassDB::bind_method(D_METHOD("set_opentype_feature", "tag", "value"), &Label3D::set_opentype_feature);
-	ClassDB::bind_method(D_METHOD("get_opentype_feature", "tag"), &Label3D::get_opentype_feature);
-	ClassDB::bind_method(D_METHOD("clear_opentype_features"), &Label3D::clear_opentype_features);
 
 	ClassDB::bind_method(D_METHOD("set_language", "language"), &Label3D::set_language);
 	ClassDB::bind_method(D_METHOD("get_language"), &Label3D::get_language);
@@ -130,7 +128,7 @@ void Label3D::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "no_depth_test"), "set_draw_flag", "get_draw_flag", FLAG_DISABLE_DEPTH_TEST);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "fixed_size"), "set_draw_flag", "get_draw_flag", FLAG_FIXED_SIZE);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "alpha_cut", PROPERTY_HINT_ENUM, "Disabled,Discard,Opaque Pre-Pass"), "set_alpha_cut_mode", "get_alpha_cut_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "alpha_scissor_threshold", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_alpha_scissor_threshold", "get_alpha_scissor_threshold");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "alpha_scissor_threshold", PROPERTY_HINT_RANGE, "0,1,0.001"), "set_alpha_scissor_threshold", "get_alpha_scissor_threshold");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "texture_filter", PROPERTY_HINT_ENUM, "Nearest,Linear,Nearest Mipmap,Linear Mipmap,Nearest Mipmap Anisotropic,Linear Mipmap Anisotropic"), "set_texture_filter", "get_texture_filter");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "render_priority", PROPERTY_HINT_RANGE, itos(RS::MATERIAL_RENDER_PRIORITY_MIN) + "," + itos(RS::MATERIAL_RENDER_PRIORITY_MAX) + ",1"), "set_render_priority", "get_render_priority");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "outline_render_priority", PROPERTY_HINT_RANGE, itos(RS::MATERIAL_RENDER_PRIORITY_MIN) + "," + itos(RS::MATERIAL_RENDER_PRIORITY_MAX) + ",1"), "set_outline_render_priority", "get_outline_render_priority");
@@ -140,7 +138,7 @@ void Label3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "outline_modulate"), "set_outline_modulate", "get_outline_modulate");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "text", PROPERTY_HINT_MULTILINE_TEXT, ""), "set_text", "get_text");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "font", PROPERTY_HINT_RESOURCE_TYPE, "Font"), "set_font", "get_font");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "font_size", PROPERTY_HINT_RANGE, "1,127,1,suffix:px"), "set_font_size", "get_font_size");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "font_size", PROPERTY_HINT_RANGE, "1,256,1,or_greater,suffix:px"), "set_font_size", "get_font_size");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "outline_size", PROPERTY_HINT_RANGE, "0,127,1,suffix:px"), "set_outline_size", "get_outline_size");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "horizontal_alignment", PROPERTY_HINT_ENUM, "Left,Center,Right,Fill"), "set_horizontal_alignment", "get_horizontal_alignment");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "vertical_alignment", PROPERTY_HINT_ENUM, "Top,Center,Bottom"), "set_vertical_alignment", "get_vertical_alignment");
@@ -148,12 +146,12 @@ void Label3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "line_spacing", PROPERTY_HINT_NONE, "suffix:px"), "set_line_spacing", "get_line_spacing");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "autowrap_mode", PROPERTY_HINT_ENUM, "Off,Arbitrary,Word,Word (Smart)"), "set_autowrap_mode", "get_autowrap_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "width", PROPERTY_HINT_NONE, "suffix:px"), "set_width", "get_width");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "structured_text_bidi_override", PROPERTY_HINT_ENUM, "Default,URI,File,Email,List,None,Custom"), "set_structured_text_bidi_override", "get_structured_text_bidi_override");
-	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "structured_text_bidi_override_options"), "set_structured_text_bidi_override_options", "get_structured_text_bidi_override_options");
 
-	ADD_GROUP("Locale", "");
+	ADD_GROUP("BiDi", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "text_direction", PROPERTY_HINT_ENUM, "Auto,Left-to-Right,Right-to-Left"), "set_text_direction", "get_text_direction");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "language", PROPERTY_HINT_LOCALE_ID, ""), "set_language", "get_language");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "structured_text_bidi_override", PROPERTY_HINT_ENUM, "Default,URI,File,Email,List,None,Custom"), "set_structured_text_bidi_override", "get_structured_text_bidi_override");
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "structured_text_bidi_override_options"), "set_structured_text_bidi_override_options", "get_structured_text_bidi_override_options");
 
 	BIND_ENUM_CONSTANT(FLAG_SHADED);
 	BIND_ENUM_CONSTANT(FLAG_DOUBLE_SIDED);
@@ -166,59 +164,19 @@ void Label3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(ALPHA_CUT_OPAQUE_PREPASS);
 }
 
-bool Label3D::_set(const StringName &p_name, const Variant &p_value) {
-	String str = p_name;
-	if (str.begins_with("opentype_features/")) {
-		String name = str.get_slicec('/', 1);
-		int32_t tag = TS->name_to_tag(name);
-		int value = p_value;
-		if (value == -1) {
-			if (opentype_features.has(tag)) {
-				opentype_features.erase(tag);
-				dirty_font = true;
-				_queue_update();
-			}
-		} else {
-			if (!opentype_features.has(tag) || (int)opentype_features[tag] != value) {
-				opentype_features[tag] = value;
-				dirty_font = true;
-				_queue_update();
-			}
-		}
-		notify_property_list_changed();
-		return true;
+void Label3D::_validate_property(PropertyInfo &p_property) const {
+	if (
+			p_property.name == "material_override" ||
+			p_property.name == "material_overlay" ||
+			p_property.name == "lod_bias" ||
+			p_property.name == "gi_mode" ||
+			p_property.name == "gi_lightmap_scale") {
+		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
-	return false;
-}
-
-bool Label3D::_get(const StringName &p_name, Variant &r_ret) const {
-	String str = p_name;
-	if (str.begins_with("opentype_features/")) {
-		String name = str.get_slicec('/', 1);
-		int32_t tag = TS->name_to_tag(name);
-		if (opentype_features.has(tag)) {
-			r_ret = opentype_features[tag];
-			return true;
-		} else {
-			r_ret = -1;
-			return true;
-		}
-	}
-	return false;
-}
-
-void Label3D::_get_property_list(List<PropertyInfo> *p_list) const {
-	for (const Variant *ftr = opentype_features.next(nullptr); ftr != nullptr; ftr = opentype_features.next(ftr)) {
-		String name = TS->tag_to_name(*ftr);
-		p_list->push_back(PropertyInfo(Variant::INT, "opentype_features/" + name));
-	}
-	p_list->push_back(PropertyInfo(Variant::NIL, "opentype_features/_new", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR));
-}
-
-void Label3D::_validate_property(PropertyInfo &property) const {
-	if (property.name == "material_override" || property.name == "material_overlay") {
-		property.usage = PROPERTY_USAGE_NO_EDITOR;
+	if (p_property.name == "cast_shadow" && alpha_cut == ALPHA_CUT_DISABLED) {
+		// Alpha-blended materials can't cast shadows.
+		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 }
 
@@ -228,6 +186,14 @@ void Label3D::_notification(int p_what) {
 			if (!pending_update) {
 				_im_update();
 			}
+			Viewport *viewport = get_viewport();
+			ERR_FAIL_COND(!viewport);
+			viewport->connect("size_changed", callable_mp(this, &Label3D::_font_changed));
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			Viewport *viewport = get_viewport();
+			ERR_FAIL_COND(!viewport);
+			viewport->disconnect("size_changed", callable_mp(this, &Label3D::_font_changed));
 		} break;
 		case NOTIFICATION_TRANSLATION_CHANGED: {
 			String new_text = tr(text);
@@ -280,7 +246,7 @@ Ref<TriangleMesh> Label3D::generate_triangle_mesh() const {
 	float total_h = 0.0;
 	float max_line_w = 0.0;
 	for (int i = 0; i < lines_rid.size(); i++) {
-		total_h += TS->shaped_text_get_size(lines_rid[i]).y + font->get_spacing(TextServer::SPACING_TOP) + font->get_spacing(TextServer::SPACING_BOTTOM) + line_spacing;
+		total_h += TS->shaped_text_get_size(lines_rid[i]).y + line_spacing;
 		max_line_w = MAX(max_line_w, TS->shaped_text_get_width(lines_rid[i]));
 	}
 
@@ -317,14 +283,14 @@ Ref<TriangleMesh> Label3D::generate_triangle_mesh() const {
 		return Ref<TriangleMesh>();
 	}
 
-	real_t pixel_size = get_pixel_size();
+	real_t px_size = get_pixel_size();
 
 	Vector2 vertices[4] = {
 
-		(final_rect.position + Vector2(0, -final_rect.size.y)) * pixel_size,
-		(final_rect.position + Vector2(final_rect.size.x, -final_rect.size.y)) * pixel_size,
-		(final_rect.position + Vector2(final_rect.size.x, 0)) * pixel_size,
-		final_rect.position * pixel_size,
+		(final_rect.position + Vector2(0, -final_rect.size.y)) * px_size,
+		(final_rect.position + Vector2(final_rect.size.x, -final_rect.size.y)) * px_size,
+		(final_rect.position + Vector2(final_rect.size.x, 0)) * px_size,
+		final_rect.position * px_size,
 
 	};
 
@@ -370,15 +336,8 @@ void Label3D::_generate_glyph_surfaces(const Glyph &p_glyph, Vector2 &r_offset, 
 
 		bool msdf = TS->font_is_multichannel_signed_distance_field(p_glyph.font_rid);
 
-		uint64_t mat_hash;
-		if (tex != RID()) {
-			mat_hash = hash_one_uint64(tex.get_id());
-		} else {
-			mat_hash = hash_one_uint64(0);
-		}
-		mat_hash = hash_djb2_one_64(p_priority | (p_outline_size << 31), mat_hash);
-
-		if (!surfaces.has(mat_hash)) {
+		SurfaceKey key = SurfaceKey(tex.get_id(), p_priority, p_outline_size);
+		if (!surfaces.has(key)) {
 			SurfaceData surf;
 			surf.material = RenderingServer::get_singleton()->material_create();
 			// Set defaults for material, names need to match up those in StandardMaterial3D
@@ -407,9 +366,9 @@ void Label3D::_generate_glyph_surfaces(const Glyph &p_glyph, Vector2 &r_offset, 
 				surf.z_shift = p_priority * pixel_size;
 			}
 
-			surfaces[mat_hash] = surf;
+			surfaces[key] = surf;
 		}
-		SurfaceData &s = surfaces[mat_hash];
+		SurfaceData &s = surfaces[key];
 
 		s.mesh_vertices.resize((s.offset + 1) * 4);
 		s.mesh_normals.resize((s.offset + 1) * 4);
@@ -464,7 +423,7 @@ void Label3D::_shape() {
 	aabb = AABB();
 
 	// Clear materials.
-	for (const KeyValue<uint64_t, SurfaceData> &E : surfaces) {
+	for (const KeyValue<SurfaceKey, SurfaceData> &E : surfaces) {
 		RenderingServer::get_singleton()->free(E.value.material);
 	}
 	surfaces.clear();
@@ -477,14 +436,17 @@ void Label3D::_shape() {
 		TS->shaped_text_clear(text_rid);
 		TS->shaped_text_set_direction(text_rid, text_direction);
 
-		String text = (uppercase) ? TS->string_to_upper(xl_text, language) : xl_text;
-		TS->shaped_text_add_string(text_rid, text, font->get_rids(), font_size, opentype_features, language);
+		String txt = (uppercase) ? TS->string_to_upper(xl_text, language) : xl_text;
+		TS->shaped_text_add_string(text_rid, txt, font->get_rids(), font_size, font->get_opentype_features(), language);
+		for (int i = 0; i < TextServer::SPACING_MAX; i++) {
+			TS->shaped_text_set_spacing(text_rid, TextServer::SpacingType(i), font->get_spacing(TextServer::SpacingType(i)));
+		}
 
-		Array stt;
+		TypedArray<Vector2i> stt;
 		if (st_parser == TextServer::STRUCTURED_TEXT_CUSTOM) {
-			GDVIRTUAL_CALL(_structured_text_parser, st_args, text, stt);
+			GDVIRTUAL_CALL(_structured_text_parser, st_args, txt, stt);
 		} else {
-			stt = TS->parse_structured_text(st_parser, st_args, text);
+			stt = TS->parse_structured_text(st_parser, st_args, txt);
 		}
 		TS->shaped_text_set_bidi_override(text_rid, stt);
 
@@ -494,7 +456,10 @@ void Label3D::_shape() {
 	} else if (dirty_font) {
 		int spans = TS->shaped_get_span_count(text_rid);
 		for (int i = 0; i < spans; i++) {
-			TS->shaped_set_span_update_font(text_rid, i, font->get_rids(), font_size, opentype_features);
+			TS->shaped_set_span_update_font(text_rid, i, font->get_rids(), font_size, font->get_opentype_features());
+		}
+		for (int i = 0; i < TextServer::SPACING_MAX; i++) {
+			TS->shaped_text_set_spacing(text_rid, TextServer::SpacingType(i), font->get_spacing(TextServer::SpacingType(i)));
 		}
 
 		dirty_font = false;
@@ -507,10 +472,10 @@ void Label3D::_shape() {
 		}
 		lines_rid.clear();
 
-		uint16_t autowrap_flags = TextServer::BREAK_MANDATORY;
+		BitField<TextServer::LineBreakFlag> autowrap_flags = TextServer::BREAK_MANDATORY;
 		switch (autowrap_mode) {
 			case TextServer::AUTOWRAP_WORD_SMART:
-				autowrap_flags = TextServer::BREAK_WORD_BOUND_ADAPTIVE | TextServer::BREAK_MANDATORY;
+				autowrap_flags = TextServer::BREAK_WORD_BOUND | TextServer::BREAK_ADAPTIVE | TextServer::BREAK_MANDATORY;
 				break;
 			case TextServer::AUTOWRAP_WORD:
 				autowrap_flags = TextServer::BREAK_WORD_BOUND | TextServer::BREAK_MANDATORY;
@@ -521,8 +486,9 @@ void Label3D::_shape() {
 			case TextServer::AUTOWRAP_OFF:
 				break;
 		}
-		PackedInt32Array line_breaks = TS->shaped_text_get_line_breaks(text_rid, width, 0, autowrap_flags);
+		autowrap_flags = autowrap_flags | TextServer::BREAK_TRIM_EDGE_SPACES;
 
+		PackedInt32Array line_breaks = TS->shaped_text_get_line_breaks(text_rid, width, 0, autowrap_flags);
 		float max_line_w = 0.0;
 		for (int i = 0; i < line_breaks.size(); i = i + 2) {
 			RID line = TS->shaped_text_substr(text_rid, line_breaks[i], line_breaks[i + 1] - line_breaks[i]);
@@ -541,7 +507,7 @@ void Label3D::_shape() {
 	// Generate surfaces and materials.
 	float total_h = 0.0;
 	for (int i = 0; i < lines_rid.size(); i++) {
-		total_h += (TS->shaped_text_get_size(lines_rid[i]).y + font->get_spacing(TextServer::SPACING_TOP) + font->get_spacing(TextServer::SPACING_BOTTOM) + line_spacing) * pixel_size;
+		total_h += (TS->shaped_text_get_size(lines_rid[i]).y + line_spacing) * pixel_size;
 	}
 
 	float vbegin = 0.0;
@@ -577,7 +543,7 @@ void Label3D::_shape() {
 			} break;
 		}
 		offset.x += lbl_offset.x * pixel_size;
-		offset.y -= (TS->shaped_text_get_ascent(lines_rid[i]) + font->get_spacing(TextServer::SPACING_TOP)) * pixel_size;
+		offset.y -= TS->shaped_text_get_ascent(lines_rid[i]) * pixel_size;
 
 		if (outline_modulate.a != 0.0 && outline_size > 0) {
 			// Outline surfaces.
@@ -591,10 +557,10 @@ void Label3D::_shape() {
 		for (int j = 0; j < gl_size; j++) {
 			_generate_glyph_surfaces(glyphs[j], offset, modulate, render_priority);
 		}
-		offset.y -= (TS->shaped_text_get_descent(lines_rid[i]) + line_spacing + font->get_spacing(TextServer::SPACING_BOTTOM)) * pixel_size;
+		offset.y -= (TS->shaped_text_get_descent(lines_rid[i]) + line_spacing) * pixel_size;
 	}
 
-	for (const KeyValue<uint64_t, SurfaceData> &E : surfaces) {
+	for (const KeyValue<SurfaceKey, SurfaceData> &E : surfaces) {
 		Array mesh_array;
 		mesh_array.resize(RS::ARRAY_MAX);
 		mesh_array[RS::ARRAY_VERTEX] = E.value.mesh_vertices;
@@ -662,29 +628,6 @@ void Label3D::set_text_direction(TextServer::Direction p_text_direction) {
 
 TextServer::Direction Label3D::get_text_direction() const {
 	return text_direction;
-}
-
-void Label3D::clear_opentype_features() {
-	opentype_features.clear();
-	dirty_font = true;
-	_queue_update();
-}
-
-void Label3D::set_opentype_feature(const String &p_name, int p_value) {
-	int32_t tag = TS->name_to_tag(p_name);
-	if (!opentype_features.has(tag) || (int)opentype_features[tag] != p_value) {
-		opentype_features[tag] = p_value;
-		dirty_font = true;
-		_queue_update();
-	}
-}
-
-int Label3D::get_opentype_feature(const String &p_name) const {
-	int32_t tag = TS->name_to_tag(p_name);
-	if (!opentype_features.has(tag)) {
-		return -1;
-	}
-	return opentype_features[tag];
 }
 
 void Label3D::set_language(const String &p_language) {
@@ -788,18 +731,18 @@ Ref<Font> Label3D::_get_font_or_default() const {
 		theme_font.unref();
 	}
 
-	if (font_override.is_valid() && font_override->get_data_count() > 0) {
+	if (font_override.is_valid()) {
 		return font_override;
 	}
 
 	// Check the project-defined Theme resource.
-	if (Theme::get_project_default().is_valid()) {
+	if (ThemeDB::get_singleton()->get_project_theme().is_valid()) {
 		List<StringName> theme_types;
-		Theme::get_project_default()->get_type_dependencies(get_class_name(), StringName(), &theme_types);
+		ThemeDB::get_singleton()->get_project_theme()->get_type_dependencies(get_class_name(), StringName(), &theme_types);
 
 		for (const StringName &E : theme_types) {
-			if (Theme::get_project_default()->has_theme_item(Theme::DATA_TYPE_FONT, "font", E)) {
-				Ref<Font> f = Theme::get_project_default()->get_theme_item(Theme::DATA_TYPE_FONT, "font", E);
+			if (ThemeDB::get_singleton()->get_project_theme()->has_theme_item(Theme::DATA_TYPE_FONT, "font", E)) {
+				Ref<Font> f = ThemeDB::get_singleton()->get_project_theme()->get_theme_item(Theme::DATA_TYPE_FONT, "font", E);
 				if (f.is_valid()) {
 					theme_font = f;
 					theme_font->connect(CoreStringNames::get_singleton()->changed, Callable(const_cast<Label3D *>(this), "_font_changed"));
@@ -812,11 +755,11 @@ Ref<Font> Label3D::_get_font_or_default() const {
 	// Lastly, fall back on the items defined in the default Theme, if they exist.
 	{
 		List<StringName> theme_types;
-		Theme::get_default()->get_type_dependencies(get_class_name(), StringName(), &theme_types);
+		ThemeDB::get_singleton()->get_default_theme()->get_type_dependencies(get_class_name(), StringName(), &theme_types);
 
 		for (const StringName &E : theme_types) {
-			if (Theme::get_default()->has_theme_item(Theme::DATA_TYPE_FONT, "font", E)) {
-				Ref<Font> f = Theme::get_default()->get_theme_item(Theme::DATA_TYPE_FONT, "font", E);
+			if (ThemeDB::get_singleton()->get_default_theme()->has_theme_item(Theme::DATA_TYPE_FONT, "font", E)) {
+				Ref<Font> f = ThemeDB::get_singleton()->get_default_theme()->get_theme_item(Theme::DATA_TYPE_FONT, "font", E);
 				if (f.is_valid()) {
 					theme_font = f;
 					theme_font->connect(CoreStringNames::get_singleton()->changed, Callable(const_cast<Label3D *>(this), "_font_changed"));
@@ -827,7 +770,7 @@ Ref<Font> Label3D::_get_font_or_default() const {
 	}
 
 	// If they don't exist, use any type to return the default/empty value.
-	Ref<Font> f = Theme::get_default()->get_theme_item(Theme::DATA_TYPE_FONT, "font", StringName());
+	Ref<Font> f = ThemeDB::get_singleton()->get_default_theme()->get_theme_item(Theme::DATA_TYPE_FONT, "font", StringName());
 	if (f.is_valid()) {
 		theme_font = f;
 		theme_font->connect(CoreStringNames::get_singleton()->changed, Callable(const_cast<Label3D *>(this), "_font_changed"));
@@ -967,6 +910,7 @@ void Label3D::set_alpha_cut_mode(AlphaCutMode p_mode) {
 	if (alpha_cut != p_mode) {
 		alpha_cut = p_mode;
 		_queue_update();
+		notify_property_list_changed();
 	}
 }
 
@@ -1005,7 +949,12 @@ Label3D::Label3D() {
 
 	mesh = RenderingServer::get_singleton()->mesh_create();
 
+	// Disable shadow casting by default to improve performance and avoid unintended visual artifacts.
 	set_cast_shadows_setting(SHADOW_CASTING_SETTING_OFF);
+
+	// Label3D can't contribute to GI in any way, so disable it to improve performance.
+	set_gi_mode(GI_MODE_DISABLED);
+
 	set_base(mesh);
 }
 
@@ -1018,7 +967,7 @@ Label3D::~Label3D() {
 	TS->free_rid(text_rid);
 
 	RenderingServer::get_singleton()->free(mesh);
-	for (KeyValue<uint64_t, SurfaceData> E : surfaces) {
+	for (KeyValue<SurfaceKey, SurfaceData> E : surfaces) {
 		RenderingServer::get_singleton()->free(E.value.material);
 	}
 	surfaces.clear();

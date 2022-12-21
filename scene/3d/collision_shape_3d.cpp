@@ -34,6 +34,7 @@
 #include "physics_body_3d.h"
 #include "scene/resources/concave_polygon_shape_3d.h"
 #include "scene/resources/convex_polygon_shape_3d.h"
+#include "scene/resources/world_boundary_shape_3d.h"
 
 void CollisionShape3D::make_convex_from_siblings() {
 	Node *p = get_parent();
@@ -62,9 +63,9 @@ void CollisionShape3D::make_convex_from_siblings() {
 		}
 	}
 
-	Ref<ConvexPolygonShape3D> shape = memnew(ConvexPolygonShape3D);
-	shape->set_points(vertices);
-	set_shape(shape);
+	Ref<ConvexPolygonShape3D> shape_new = memnew(ConvexPolygonShape3D);
+	shape_new->set_points(vertices);
+	set_shape(shape_new);
 }
 
 void CollisionShape3D::_update_in_shape_owner(bool p_xform_only) {
@@ -114,21 +115,23 @@ void CollisionShape3D::resource_changed(Ref<Resource> res) {
 	update_gizmos();
 }
 
-TypedArray<String> CollisionShape3D::get_configuration_warnings() const {
-	TypedArray<String> warnings = Node::get_configuration_warnings();
+PackedStringArray CollisionShape3D::get_configuration_warnings() const {
+	PackedStringArray warnings = Node::get_configuration_warnings();
 
 	if (!Object::cast_to<CollisionObject3D>(get_parent())) {
-		warnings.push_back(RTR("CollisionShape3D only serves to provide a collision shape to a CollisionObject3D derived node. Please only use it as a child of Area3D, StaticBody3D, RigidDynamicBody3D, CharacterBody3D, etc. to give them a shape."));
+		warnings.push_back(RTR("CollisionShape3D only serves to provide a collision shape to a CollisionObject3D derived node. Please only use it as a child of Area3D, StaticBody3D, RigidBody3D, CharacterBody3D, etc. to give them a shape."));
 	}
 
 	if (!shape.is_valid()) {
 		warnings.push_back(RTR("A shape must be provided for CollisionShape3D to function. Please create a shape resource for it."));
 	}
 
-	if (shape.is_valid() &&
-			Object::cast_to<RigidDynamicBody3D>(get_parent()) &&
-			Object::cast_to<ConcavePolygonShape3D>(*shape)) {
-		warnings.push_back(RTR("ConcavePolygonShape3D doesn't support RigidDynamicBody3D in another mode than static."));
+	if (shape.is_valid() && Object::cast_to<RigidBody3D>(get_parent())) {
+		if (Object::cast_to<ConcavePolygonShape3D>(*shape)) {
+			warnings.push_back(RTR("ConcavePolygonShape3D doesn't support RigidBody3D in another mode than static."));
+		} else if (Object::cast_to<WorldBoundaryShape3D>(*shape)) {
+			warnings.push_back(RTR("WorldBoundaryShape3D doesn't support RigidBody3D in another mode than static."));
+		}
 	}
 
 	return warnings;

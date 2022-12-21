@@ -57,6 +57,9 @@
 #include "camera_server.h"
 #include "debugger/servers_debugger.h"
 #include "display_server.h"
+#include "movie_writer/movie_writer.h"
+#include "movie_writer/movie_writer_mjpeg.h"
+#include "movie_writer/movie_writer_pngwav.h"
 #include "navigation_server_2d.h"
 #include "navigation_server_3d.h"
 #include "physics_2d/godot_physics_server_2d.h"
@@ -69,6 +72,7 @@
 #include "rendering/rendering_device.h"
 #include "rendering/rendering_device_binds.h"
 #include "rendering_server.h"
+#include "servers/extensions/physics_server_2d_extension.h"
 #include "servers/extensions/physics_server_3d_extension.h"
 #include "servers/rendering/shader_types.h"
 #include "text/text_server_dummy.h"
@@ -81,7 +85,7 @@
 
 ShaderTypes *shader_types = nullptr;
 
-PhysicsServer3D *_createGodotPhysics3DCallback() {
+static PhysicsServer3D *_createGodotPhysics3DCallback() {
 	bool using_threads = GLOBAL_GET("physics/3d/run_on_separate_thread");
 
 	PhysicsServer3D *physics_server_3d = memnew(GodotPhysicsServer3D(using_threads));
@@ -89,7 +93,7 @@ PhysicsServer3D *_createGodotPhysics3DCallback() {
 	return memnew(PhysicsServer3DWrapMT(physics_server_3d, using_threads));
 }
 
-PhysicsServer2D *_createGodotPhysics2DCallback() {
+static PhysicsServer2D *_createGodotPhysics2DCallback() {
 	bool using_threads = GLOBAL_GET("physics/2d/run_on_separate_thread");
 
 	PhysicsServer2D *physics_server_2d = memnew(GodotPhysicsServer2D(using_threads));
@@ -106,6 +110,9 @@ static bool has_server_feature_callback(const String &p_feature) {
 
 	return false;
 }
+
+static MovieWriterMJPEG *writer_mjpeg = nullptr;
+static MovieWriterPNGWAV *writer_pngwav = nullptr;
 
 void register_server_types() {
 	shader_types = memnew(ShaderTypes);
@@ -126,7 +133,22 @@ void register_server_types() {
 	GDREGISTER_ABSTRACT_CLASS(RenderingServer);
 	GDREGISTER_CLASS(AudioServer);
 
+	GDREGISTER_CLASS(PhysicsServer2DManager);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer2DManager", PhysicsServer2DManager::get_singleton(), "PhysicsServer2DManager"));
+
 	GDREGISTER_ABSTRACT_CLASS(PhysicsServer2D);
+	GDREGISTER_VIRTUAL_CLASS(PhysicsServer2DExtension);
+	GDREGISTER_VIRTUAL_CLASS(PhysicsDirectBodyState2DExtension);
+	GDREGISTER_VIRTUAL_CLASS(PhysicsDirectSpaceState2DExtension);
+
+	GDREGISTER_NATIVE_STRUCT(PhysicsServer2DExtensionRayResult, "Vector2 position;Vector2 normal;RID rid;ObjectID collider_id;Object *collider;int shape");
+	GDREGISTER_NATIVE_STRUCT(PhysicsServer2DExtensionShapeResult, "RID rid;ObjectID collider_id;Object *collider;int shape");
+	GDREGISTER_NATIVE_STRUCT(PhysicsServer2DExtensionShapeRestInfo, "Vector2 point;Vector2 normal;RID rid;ObjectID collider_id;int shape;Vector2 linear_velocity");
+	GDREGISTER_NATIVE_STRUCT(PhysicsServer2DExtensionMotionResult, "Vector2 travel;Vector2 remainder;Vector2 collision_point;Vector2 collision_normal;Vector2 collider_velocity;real_t collision_depth;real_t collision_safe_fraction;real_t collision_unsafe_fraction;int collision_local_shape;ObjectID collider_id;RID collider;int collider_shape");
+
+	GDREGISTER_CLASS(PhysicsServer3DManager);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer3DManager", PhysicsServer3DManager::get_singleton(), "PhysicsServer3DManager"));
+
 	GDREGISTER_ABSTRACT_CLASS(PhysicsServer3D);
 	GDREGISTER_VIRTUAL_CLASS(PhysicsServer3DExtension);
 	GDREGISTER_VIRTUAL_CLASS(PhysicsDirectBodyState3DExtension);
@@ -138,10 +160,14 @@ void register_server_types() {
 	GDREGISTER_NATIVE_STRUCT(PhysicsServer3DExtensionShapeRestInfo, "Vector3 point;Vector3 normal;RID rid;ObjectID collider_id;int shape;Vector3 linear_velocity");
 	GDREGISTER_NATIVE_STRUCT(PhysicsServer3DExtensionMotionCollision, "Vector3 position;Vector3 normal;Vector3 collider_velocity;real_t depth;int local_shape;ObjectID collider_id;RID collider;int collider_shape");
 	GDREGISTER_NATIVE_STRUCT(PhysicsServer3DExtensionMotionResult, "Vector3 travel;Vector3 remainder;real_t collision_safe_fraction;real_t collision_unsafe_fraction;PhysicsServer3DExtensionMotionCollision collisions[32];int collision_count");
-	GDREGISTER_NATIVE_STRUCT(PhysicsServer3DExtensionStateCallback, "void *instance;void (*callback)(void *p_instance, PhysicsDirectBodyState3D *p_state)");
 
 	GDREGISTER_ABSTRACT_CLASS(NavigationServer2D);
 	GDREGISTER_ABSTRACT_CLASS(NavigationServer3D);
+	GDREGISTER_CLASS(NavigationPathQueryParameters2D);
+	GDREGISTER_CLASS(NavigationPathQueryParameters3D);
+	GDREGISTER_CLASS(NavigationPathQueryResult2D);
+	GDREGISTER_CLASS(NavigationPathQueryResult3D);
+
 	GDREGISTER_CLASS(XRServer);
 	GDREGISTER_CLASS(CameraServer);
 
@@ -239,26 +265,36 @@ void register_server_types() {
 	GDREGISTER_CLASS(PhysicsTestMotionParameters3D);
 	GDREGISTER_CLASS(PhysicsTestMotionResult3D);
 
+	GDREGISTER_VIRTUAL_CLASS(MovieWriter);
+
 	ServersDebugger::initialize();
 
 	// Physics 2D
 	GLOBAL_DEF(PhysicsServer2DManager::setting_property_name, "DEFAULT");
 	ProjectSettings::get_singleton()->set_custom_property_info(PhysicsServer2DManager::setting_property_name, PropertyInfo(Variant::STRING, PhysicsServer2DManager::setting_property_name, PROPERTY_HINT_ENUM, "DEFAULT"));
 
-	PhysicsServer2DManager::register_server("GodotPhysics2D", &_createGodotPhysics2DCallback);
-	PhysicsServer2DManager::set_default_server("GodotPhysics2D");
+	PhysicsServer2DManager::get_singleton()->register_server("GodotPhysics2D", callable_mp_static(_createGodotPhysics2DCallback));
+	PhysicsServer2DManager::get_singleton()->set_default_server("GodotPhysics2D");
 
 	// Physics 3D
 	GLOBAL_DEF(PhysicsServer3DManager::setting_property_name, "DEFAULT");
 	ProjectSettings::get_singleton()->set_custom_property_info(PhysicsServer3DManager::setting_property_name, PropertyInfo(Variant::STRING, PhysicsServer3DManager::setting_property_name, PROPERTY_HINT_ENUM, "DEFAULT"));
 
-	PhysicsServer3DManager::register_server("GodotPhysics3D", &_createGodotPhysics3DCallback);
-	PhysicsServer3DManager::set_default_server("GodotPhysics3D");
+	PhysicsServer3DManager::get_singleton()->register_server("GodotPhysics3D", callable_mp_static(_createGodotPhysics3DCallback));
+	PhysicsServer3DManager::get_singleton()->set_default_server("GodotPhysics3D");
+
+	writer_mjpeg = memnew(MovieWriterMJPEG);
+	MovieWriter::add_writer(writer_mjpeg);
+
+	writer_pngwav = memnew(MovieWriterPNGWAV);
+	MovieWriter::add_writer(writer_pngwav);
 }
 
 void unregister_server_types() {
 	ServersDebugger::deinitialize();
 	memdelete(shader_types);
+	memdelete(writer_mjpeg);
+	memdelete(writer_pngwav);
 }
 
 void register_server_singletons() {

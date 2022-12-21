@@ -39,7 +39,7 @@ void OpenXRSelectActionDialog::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
-			scroll->add_theme_style_override("bg", get_theme_stylebox(SNAME("bg"), SNAME("Tree")));
+			scroll->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), SNAME("Tree")));
 		} break;
 	}
 }
@@ -47,7 +47,7 @@ void OpenXRSelectActionDialog::_notification(int p_what) {
 void OpenXRSelectActionDialog::_on_select_action(const String p_action) {
 	if (selected_action != "") {
 		NodePath button_path = action_buttons[selected_action];
-		Button *button = static_cast<Button *>(get_node(button_path));
+		Button *button = Object::cast_to<Button>(get_node(button_path));
 		if (button != nullptr) {
 			button->set_flat(true);
 		}
@@ -57,7 +57,7 @@ void OpenXRSelectActionDialog::_on_select_action(const String p_action) {
 
 	if (selected_action != "") {
 		NodePath button_path = action_buttons[selected_action];
-		Button *button = static_cast<Button *>(get_node(button_path));
+		Button *button = Object::cast_to<Button>(get_node(button_path));
 		if (button != nullptr) {
 			button->set_flat(false);
 		}
@@ -96,11 +96,9 @@ void OpenXRSelectActionDialog::open() {
 
 			Button *action_button = memnew(Button);
 			String action_name = action->get_name_with_set();
-			Vector<Variant> binds;
-			binds.push_back(action_name);
 			action_button->set_flat(true);
 			action_button->set_text(action->get_name() + ": " + action->get_localized_name());
-			action_button->connect("pressed", callable_mp(this, &OpenXRSelectActionDialog::_on_select_action), binds);
+			action_button->connect("pressed", callable_mp(this, &OpenXRSelectActionDialog::_on_select_action).bind(action_name));
 			action_hb->add_child(action_button);
 
 			action_buttons[action_name] = action_button->get_path();

@@ -36,11 +36,11 @@
 #include "core/object/ref_counted.h"
 #include "core/object/script_language.h"
 
-void Callable::call_deferred(const Variant **p_arguments, int p_argcount) const {
+void Callable::call_deferredp(const Variant **p_arguments, int p_argcount) const {
 	MessageQueue::get_singleton()->push_callablep(*this, p_arguments, p_argcount);
 }
 
-void Callable::call(const Variant **p_arguments, int p_argcount, Variant &r_return_value, CallError &r_call_error) const {
+void Callable::callp(const Variant **p_arguments, int p_argcount, Variant &r_return_value, CallError &r_call_error) const {
 	if (is_null()) {
 		r_call_error.error = CallError::CALL_ERROR_INSTANCE_IS_NULL;
 		r_call_error.argument = 0;
@@ -63,21 +63,38 @@ void Callable::call(const Variant **p_arguments, int p_argcount, Variant &r_retu
 	}
 }
 
-void Callable::rpc(int p_id, const Variant **p_arguments, int p_argcount, CallError &r_call_error) const {
+Variant Callable::callv(const Array &p_arguments) const {
+	int argcount = p_arguments.size();
+	const Variant **argptrs = nullptr;
+	if (argcount) {
+		argptrs = (const Variant **)alloca(sizeof(Variant *) * argcount);
+		for (int i = 0; i < argcount; i++) {
+			argptrs[i] = &p_arguments[i];
+		}
+	}
+	CallError ce;
+	Variant ret;
+	callp(argptrs, argcount, ret, ce);
+	return ret;
+}
+
+Error Callable::rpcp(int p_id, const Variant **p_arguments, int p_argcount, CallError &r_call_error) const {
 	if (is_null()) {
 		r_call_error.error = CallError::CALL_ERROR_INSTANCE_IS_NULL;
 		r_call_error.argument = 0;
 		r_call_error.expected = 0;
+		return ERR_UNCONFIGURED;
 	} else if (!is_custom()) {
 		r_call_error.error = CallError::CALL_ERROR_INVALID_METHOD;
 		r_call_error.argument = 0;
 		r_call_error.expected = 0;
+		return ERR_UNCONFIGURED;
 	} else {
-		custom->rpc(p_id, p_arguments, p_argcount, r_call_error);
+		return custom->rpc(p_id, p_arguments, p_argcount, r_call_error);
 	}
 }
 
-Callable Callable::bind(const Variant **p_arguments, int p_argcount) const {
+Callable Callable::bindp(const Variant **p_arguments, int p_argcount) const {
 	Vector<Variant> args;
 	args.resize(p_argcount);
 	for (int i = 0; i < p_argcount; i++) {
@@ -143,7 +160,8 @@ uint32_t Callable::hash() const {
 		return custom->hash();
 	} else {
 		uint32_t hash = method.hash();
-		return hash_djb2_one_64(object, hash);
+		hash = hash_murmur3_one_64(object, hash);
+		return hash_fmix32(hash);
 	}
 }
 
@@ -315,10 +333,11 @@ StringName CallableCustom::get_method() const {
 	ERR_FAIL_V_MSG(StringName(), vformat("Can't get method on CallableCustom \"%s\".", get_as_text()));
 }
 
-void CallableCustom::rpc(int p_peer_id, const Variant **p_arguments, int p_argcount, Callable::CallError &r_call_error) const {
+Error CallableCustom::rpc(int p_peer_id, const Variant **p_arguments, int p_argcount, Callable::CallError &r_call_error) const {
 	r_call_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
 	r_call_error.argument = 0;
 	r_call_error.expected = 0;
+	return ERR_UNCONFIGURED;
 }
 
 const Callable *CallableCustom::get_base_comparator() const {
@@ -383,33 +402,33 @@ Error Signal::emit(const Variant **p_arguments, int p_argcount) const {
 }
 
 Error Signal::connect(const Callable &p_callable, uint32_t p_flags) {
-	Object *object = get_object();
-	ERR_FAIL_COND_V(!object, ERR_UNCONFIGURED);
+	Object *obj = get_object();
+	ERR_FAIL_COND_V(!obj, ERR_UNCONFIGURED);
 
-	return object->connect(name, p_callable, varray(), p_flags);
+	return obj->connect(name, p_callable, p_flags);
 }
 
 void Signal::disconnect(const Callable &p_callable) {
-	Object *object = get_object();
-	ERR_FAIL_COND(!object);
-	object->disconnect(name, p_callable);
+	Object *obj = get_object();
+	ERR_FAIL_COND(!obj);
+	obj->disconnect(name, p_callable);
 }
 
 bool Signal::is_connected(const Callable &p_callable) const {
-	Object *object = get_object();
-	ERR_FAIL_COND_V(!object, false);
+	Object *obj = get_object();
+	ERR_FAIL_COND_V(!obj, false);
 
-	return object->is_connected(name, p_callable);
+	return obj->is_connected(name, p_callable);
 }
 
 Array Signal::get_connections() const {
-	Object *object = get_object();
-	if (!object) {
+	Object *obj = get_object();
+	if (!obj) {
 		return Array();
 	}
 
 	List<Object::Connection> connections;
-	object->get_signal_connection_list(name, &connections);
+	obj->get_signal_connection_list(name, &connections);
 
 	Array arr;
 	for (const Object::Connection &E : connections) {
@@ -434,8 +453,8 @@ bool CallableComparator::operator()(const Variant &p_l, const Variant &p_r) cons
 	const Variant *args[2] = { &p_l, &p_r };
 	Callable::CallError err;
 	Variant res;
-	func.call(args, 2, res, err);
+	func.callp(args, 2, res, err);
 	ERR_FAIL_COND_V_MSG(err.error != Callable::CallError::CALL_OK, false,
-			"Error calling compare method: " + Variant::get_callable_error_text(func, args, 1, err));
+			"Error calling compare method: " + Variant::get_callable_error_text(func, args, 2, err));
 	return res;
 }

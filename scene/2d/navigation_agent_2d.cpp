@@ -40,14 +40,17 @@ void NavigationAgent2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_avoidance_enabled", "enabled"), &NavigationAgent2D::set_avoidance_enabled);
 	ClassDB::bind_method(D_METHOD("get_avoidance_enabled"), &NavigationAgent2D::get_avoidance_enabled);
 
+	ClassDB::bind_method(D_METHOD("set_path_desired_distance", "desired_distance"), &NavigationAgent2D::set_path_desired_distance);
+	ClassDB::bind_method(D_METHOD("get_path_desired_distance"), &NavigationAgent2D::get_path_desired_distance);
+
 	ClassDB::bind_method(D_METHOD("set_target_desired_distance", "desired_distance"), &NavigationAgent2D::set_target_desired_distance);
 	ClassDB::bind_method(D_METHOD("get_target_desired_distance"), &NavigationAgent2D::get_target_desired_distance);
 
 	ClassDB::bind_method(D_METHOD("set_radius", "radius"), &NavigationAgent2D::set_radius);
 	ClassDB::bind_method(D_METHOD("get_radius"), &NavigationAgent2D::get_radius);
 
-	ClassDB::bind_method(D_METHOD("set_neighbor_dist", "neighbor_dist"), &NavigationAgent2D::set_neighbor_dist);
-	ClassDB::bind_method(D_METHOD("get_neighbor_dist"), &NavigationAgent2D::get_neighbor_dist);
+	ClassDB::bind_method(D_METHOD("set_neighbor_distance", "neighbor_distance"), &NavigationAgent2D::set_neighbor_distance);
+	ClassDB::bind_method(D_METHOD("get_neighbor_distance"), &NavigationAgent2D::get_neighbor_distance);
 
 	ClassDB::bind_method(D_METHOD("set_max_neighbors", "max_neighbors"), &NavigationAgent2D::set_max_neighbors);
 	ClassDB::bind_method(D_METHOD("get_max_neighbors"), &NavigationAgent2D::get_max_neighbors);
@@ -64,16 +67,20 @@ void NavigationAgent2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_navigation_layers", "navigation_layers"), &NavigationAgent2D::set_navigation_layers);
 	ClassDB::bind_method(D_METHOD("get_navigation_layers"), &NavigationAgent2D::get_navigation_layers);
 
+	ClassDB::bind_method(D_METHOD("set_navigation_layer_value", "layer_number", "value"), &NavigationAgent2D::set_navigation_layer_value);
+	ClassDB::bind_method(D_METHOD("get_navigation_layer_value", "layer_number"), &NavigationAgent2D::get_navigation_layer_value);
+
 	ClassDB::bind_method(D_METHOD("set_navigation_map", "navigation_map"), &NavigationAgent2D::set_navigation_map);
 	ClassDB::bind_method(D_METHOD("get_navigation_map"), &NavigationAgent2D::get_navigation_map);
 
 	ClassDB::bind_method(D_METHOD("set_target_location", "location"), &NavigationAgent2D::set_target_location);
 	ClassDB::bind_method(D_METHOD("get_target_location"), &NavigationAgent2D::get_target_location);
+
 	ClassDB::bind_method(D_METHOD("get_next_location"), &NavigationAgent2D::get_next_location);
 	ClassDB::bind_method(D_METHOD("distance_to_target"), &NavigationAgent2D::distance_to_target);
 	ClassDB::bind_method(D_METHOD("set_velocity", "velocity"), &NavigationAgent2D::set_velocity);
-	ClassDB::bind_method(D_METHOD("get_nav_path"), &NavigationAgent2D::get_nav_path);
-	ClassDB::bind_method(D_METHOD("get_nav_path_index"), &NavigationAgent2D::get_nav_path_index);
+	ClassDB::bind_method(D_METHOD("get_current_navigation_path"), &NavigationAgent2D::get_current_navigation_path);
+	ClassDB::bind_method(D_METHOD("get_current_navigation_path_index"), &NavigationAgent2D::get_current_navigation_path_index);
 	ClassDB::bind_method(D_METHOD("is_target_reached"), &NavigationAgent2D::is_target_reached);
 	ClassDB::bind_method(D_METHOD("is_target_reachable"), &NavigationAgent2D::is_target_reachable);
 	ClassDB::bind_method(D_METHOD("is_navigation_finished"), &NavigationAgent2D::is_navigation_finished);
@@ -81,20 +88,25 @@ void NavigationAgent2D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("_avoidance_done", "new_velocity"), &NavigationAgent2D::_avoidance_done);
 
+	ADD_GROUP("Pathfinding", "");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "target_location", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_target_location", "get_target_location");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "path_desired_distance", PROPERTY_HINT_RANGE, "0.1,100,0.01,suffix:px"), "set_path_desired_distance", "get_path_desired_distance");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "target_desired_distance", PROPERTY_HINT_RANGE, "0.1,100,0.01,suffix:px"), "set_target_desired_distance", "get_target_desired_distance");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "path_max_distance", PROPERTY_HINT_RANGE, "10,100,1,suffix:px"), "set_path_max_distance", "get_path_max_distance");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "navigation_layers", PROPERTY_HINT_LAYERS_2D_NAVIGATION), "set_navigation_layers", "get_navigation_layers");
+
+	ADD_GROUP("Avoidance", "");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "avoidance_enabled"), "set_avoidance_enabled", "get_avoidance_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "radius", PROPERTY_HINT_RANGE, "0.1,500,0.01,suffix:px"), "set_radius", "get_radius");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neighbor_dist", PROPERTY_HINT_RANGE, "0.1,100000,0.01,suffix:px"), "set_neighbor_dist", "get_neighbor_dist");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neighbor_distance", PROPERTY_HINT_RANGE, "0.1,100000,0.01,suffix:px"), "set_neighbor_distance", "get_neighbor_distance");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_neighbors", PROPERTY_HINT_RANGE, "1,10000,1"), "set_max_neighbors", "get_max_neighbors");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "time_horizon", PROPERTY_HINT_RANGE, "0.1,10000,0.01,suffix:s"), "set_time_horizon", "get_time_horizon");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_speed", PROPERTY_HINT_RANGE, "0.1,100000,0.01,suffix:px/s"), "set_max_speed", "get_max_speed");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "path_max_distance", PROPERTY_HINT_RANGE, "10,100,1,suffix:px"), "set_path_max_distance", "get_path_max_distance");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "avoidance_enabled"), "set_avoidance_enabled", "get_avoidance_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "navigation_layers", PROPERTY_HINT_LAYERS_2D_NAVIGATION), "set_navigation_layers", "get_navigation_layers");
 
 	ADD_SIGNAL(MethodInfo("path_changed"));
 	ADD_SIGNAL(MethodInfo("target_reached"));
 	ADD_SIGNAL(MethodInfo("navigation_finished"));
-	ADD_SIGNAL(MethodInfo("velocity_computed", PropertyInfo(Variant::VECTOR3, "safe_velocity")));
+	ADD_SIGNAL(MethodInfo("velocity_computed", PropertyInfo(Variant::VECTOR2, "safe_velocity")));
 }
 
 void NavigationAgent2D::_notification(int p_what) {
@@ -163,11 +175,18 @@ void NavigationAgent2D::_notification(int p_what) {
 
 NavigationAgent2D::NavigationAgent2D() {
 	agent = NavigationServer2D::get_singleton()->agent_create();
-	set_neighbor_dist(500.0);
+	set_neighbor_distance(500.0);
 	set_max_neighbors(10);
 	set_time_horizon(20.0);
 	set_radius(10.0);
 	set_max_speed(200.0);
+
+	// Preallocate query and result objects to improve performance.
+	navigation_query = Ref<NavigationPathQueryParameters2D>();
+	navigation_query.instantiate();
+
+	navigation_result = Ref<NavigationPathQueryResult2D>();
+	navigation_result.instantiate();
 }
 
 NavigationAgent2D::~NavigationAgent2D() {
@@ -178,9 +197,9 @@ NavigationAgent2D::~NavigationAgent2D() {
 void NavigationAgent2D::set_avoidance_enabled(bool p_enabled) {
 	avoidance_enabled = p_enabled;
 	if (avoidance_enabled) {
-		NavigationServer2D::get_singleton()->agent_set_callback(agent, this, "_avoidance_done");
+		NavigationServer2D::get_singleton()->agent_set_callback(agent, get_instance_id(), "_avoidance_done");
 	} else {
-		NavigationServer2D::get_singleton()->agent_set_callback(agent, nullptr, "_avoidance_done");
+		NavigationServer2D::get_singleton()->agent_set_callback(agent, ObjectID(), "_avoidance_done");
 	}
 }
 
@@ -190,7 +209,7 @@ bool NavigationAgent2D::get_avoidance_enabled() const {
 
 void NavigationAgent2D::set_agent_parent(Node *p_agent_parent) {
 	// remove agent from any avoidance map before changing parent or there will be leftovers on the RVO map
-	NavigationServer2D::get_singleton()->agent_set_callback(agent, nullptr, "_avoidance_done");
+	NavigationServer2D::get_singleton()->agent_set_callback(agent, ObjectID(), "_avoidance_done");
 	if (Object::cast_to<Node2D>(p_agent_parent) != nullptr) {
 		// place agent on navigation map first or else the RVO agent callback creation fails silently later
 		agent_parent = Object::cast_to<Node2D>(p_agent_parent);
@@ -219,6 +238,24 @@ uint32_t NavigationAgent2D::get_navigation_layers() const {
 	return navigation_layers;
 }
 
+void NavigationAgent2D::set_navigation_layer_value(int p_layer_number, bool p_value) {
+	ERR_FAIL_COND_MSG(p_layer_number < 1, "Navigation layer number must be between 1 and 32 inclusive.");
+	ERR_FAIL_COND_MSG(p_layer_number > 32, "Navigation layer number must be between 1 and 32 inclusive.");
+	uint32_t _navigation_layers = get_navigation_layers();
+	if (p_value) {
+		_navigation_layers |= 1 << (p_layer_number - 1);
+	} else {
+		_navigation_layers &= ~(1 << (p_layer_number - 1));
+	}
+	set_navigation_layers(_navigation_layers);
+}
+
+bool NavigationAgent2D::get_navigation_layer_value(int p_layer_number) const {
+	ERR_FAIL_COND_V_MSG(p_layer_number < 1, false, "Navigation layer number must be between 1 and 32 inclusive.");
+	ERR_FAIL_COND_V_MSG(p_layer_number > 32, false, "Navigation layer number must be between 1 and 32 inclusive.");
+	return get_navigation_layers() & (1 << (p_layer_number - 1));
+}
+
 void NavigationAgent2D::set_navigation_map(RID p_navigation_map) {
 	map_override = p_navigation_map;
 	NavigationServer2D::get_singleton()->agent_set_map(agent, map_override);
@@ -234,6 +271,10 @@ RID NavigationAgent2D::get_navigation_map() const {
 	return RID();
 }
 
+void NavigationAgent2D::set_path_desired_distance(real_t p_dd) {
+	path_desired_distance = p_dd;
+}
+
 void NavigationAgent2D::set_target_desired_distance(real_t p_dd) {
 	target_desired_distance = p_dd;
 }
@@ -243,9 +284,9 @@ void NavigationAgent2D::set_radius(real_t p_radius) {
 	NavigationServer2D::get_singleton()->agent_set_radius(agent, radius);
 }
 
-void NavigationAgent2D::set_neighbor_dist(real_t p_dist) {
-	neighbor_dist = p_dist;
-	NavigationServer2D::get_singleton()->agent_set_neighbor_dist(agent, neighbor_dist);
+void NavigationAgent2D::set_neighbor_distance(real_t p_distance) {
+	neighbor_distance = p_distance;
+	NavigationServer2D::get_singleton()->agent_set_neighbor_distance(agent, neighbor_distance);
 }
 
 void NavigationAgent2D::set_max_neighbors(int p_count) {
@@ -282,12 +323,18 @@ Vector2 NavigationAgent2D::get_target_location() const {
 
 Vector2 NavigationAgent2D::get_next_location() {
 	update_navigation();
+
+	const Vector<Vector2> &navigation_path = navigation_result->get_path();
 	if (navigation_path.size() == 0) {
 		ERR_FAIL_COND_V_MSG(agent_parent == nullptr, Vector2(), "The agent has no parent.");
 		return agent_parent->get_global_position();
 	} else {
-		return navigation_path[nav_path_index];
+		return navigation_path[navigation_path_index];
 	}
+}
+
+const Vector<Vector2> &NavigationAgent2D::get_current_navigation_path() const {
+	return navigation_result->get_path();
 }
 
 real_t NavigationAgent2D::distance_to_target() const {
@@ -310,6 +357,8 @@ bool NavigationAgent2D::is_navigation_finished() {
 
 Vector2 NavigationAgent2D::get_final_location() {
 	update_navigation();
+
+	const Vector<Vector2> &navigation_path = navigation_result->get_path();
 	if (navigation_path.size() == 0) {
 		return Vector2();
 	}
@@ -336,8 +385,8 @@ void NavigationAgent2D::_avoidance_done(Vector3 p_new_velocity) {
 	emit_signal(SNAME("velocity_computed"), velocity);
 }
 
-TypedArray<String> NavigationAgent2D::get_configuration_warnings() const {
-	TypedArray<String> warnings = Node::get_configuration_warnings();
+PackedStringArray NavigationAgent2D::get_configuration_warnings() const {
+	PackedStringArray warnings = Node::get_configuration_warnings();
 
 	if (!Object::cast_to<Node2D>(get_parent())) {
 		warnings.push_back(RTR("The NavigationAgent2D can be used only under a Node2D inheriting parent node."));
@@ -359,22 +408,24 @@ void NavigationAgent2D::update_navigation() {
 
 	update_frame_id = Engine::get_singleton()->get_physics_frames();
 
-	Vector2 o = agent_parent->get_global_position();
+	Vector2 origin = agent_parent->get_global_position();
 
 	bool reload_path = false;
 
 	if (NavigationServer2D::get_singleton()->agent_is_map_changed(agent)) {
 		reload_path = true;
-	} else if (navigation_path.size() == 0) {
+	} else if (navigation_result->get_path().size() == 0) {
 		reload_path = true;
 	} else {
 		// Check if too far from the navigation path
-		if (nav_path_index > 0) {
+		if (navigation_path_index > 0) {
+			const Vector<Vector2> &navigation_path = navigation_result->get_path();
+
 			Vector2 segment[2];
-			segment[0] = navigation_path[nav_path_index - 1];
-			segment[1] = navigation_path[nav_path_index];
-			Vector2 p = Geometry2D::get_closest_point_to_segment(o, segment);
-			if (o.distance_to(p) >= path_max_distance) {
+			segment[0] = navigation_path[navigation_path_index - 1];
+			segment[1] = navigation_path[navigation_path_index];
+			Vector2 p = Geometry2D::get_closest_point_to_segment(origin, segment);
+			if (origin.distance_to(p) >= path_max_distance) {
 				// To faraway, reload path
 				reload_path = true;
 			}
@@ -382,28 +433,35 @@ void NavigationAgent2D::update_navigation() {
 	}
 
 	if (reload_path) {
+		navigation_query->set_start_position(origin);
+		navigation_query->set_target_position(target_location);
+		navigation_query->set_navigation_layers(navigation_layers);
+
 		if (map_override.is_valid()) {
-			navigation_path = NavigationServer2D::get_singleton()->map_get_path(map_override, o, target_location, true, navigation_layers);
+			navigation_query->set_map(map_override);
 		} else {
-			navigation_path = NavigationServer2D::get_singleton()->map_get_path(agent_parent->get_world_2d()->get_navigation_map(), o, target_location, true, navigation_layers);
+			navigation_query->set_map(agent_parent->get_world_2d()->get_navigation_map());
 		}
+
+		NavigationServer2D::get_singleton()->query_path(navigation_query, navigation_result);
 		navigation_finished = false;
-		nav_path_index = 0;
+		navigation_path_index = 0;
 		emit_signal(SNAME("path_changed"));
 	}
 
-	if (navigation_path.size() == 0) {
+	if (navigation_result->get_path().size() == 0) {
 		return;
 	}
 
 	// Check if we can advance the navigation path
 	if (navigation_finished == false) {
 		// Advances to the next far away location.
-		while (o.distance_to(navigation_path[nav_path_index]) < target_desired_distance) {
-			nav_path_index += 1;
-			if (nav_path_index == navigation_path.size()) {
+		const Vector<Vector2> &navigation_path = navigation_result->get_path();
+		while (origin.distance_to(navigation_path[navigation_path_index]) < path_desired_distance) {
+			navigation_path_index += 1;
+			if (navigation_path_index == navigation_path.size()) {
 				_check_distance_to_target();
-				nav_path_index -= 1;
+				navigation_path_index -= 1;
 				navigation_finished = true;
 				emit_signal(SNAME("navigation_finished"));
 				break;
@@ -413,7 +471,7 @@ void NavigationAgent2D::update_navigation() {
 }
 
 void NavigationAgent2D::_request_repath() {
-	navigation_path.clear();
+	navigation_result->reset();
 	target_reached = false;
 	navigation_finished = false;
 	update_frame_id = 0;
@@ -422,8 +480,8 @@ void NavigationAgent2D::_request_repath() {
 void NavigationAgent2D::_check_distance_to_target() {
 	if (!target_reached) {
 		if (distance_to_target() < target_desired_distance) {
-			emit_signal(SNAME("target_reached"));
 			target_reached = true;
+			emit_signal(SNAME("target_reached"));
 		}
 	}
 }

@@ -11,11 +11,12 @@
 	<methods>
 		<method name="add_filter">
 			<return type="void" />
-			<argument index="0" name="filter" type="String" />
+			<param index="0" name="filter" type="String" />
+			<param index="1" name="description" type="String" default="&quot;&quot;" />
 			<description>
-				Adds [code]filter[/code] to the list of filters, which restricts what files can be picked.
-				A [code]filter[/code] should be of the form [code]"filename.extension ; Description"[/code], where filename and extension can be [code]*[/code] to match any string. Filters starting with [code].[/code] (i.e. empty filenames) are not allowed.
-				Example filters: [code]"*.png ; PNG Images"[/code], [code]"project.godot ; Godot Project"[/code].
+				Adds a comma-delimited file name [param filter] option to the [FileDialog] with an optional [param description], which restricts what files can be picked.
+				A [param filter] should be of the form [code]"filename.extension"[/code], where filename and extension can be [code]*[/code] to match any string. Filters starting with [code].[/code] (i.e. empty filenames) are not allowed.
+				For example, a [param filter] of [code]"*.png, *.jpg"[/code] and a [param description] of [code]"Images"[/code] results in filter text "Images (*.png, *.jpg)".
 			</description>
 		</method>
 		<method name="clear_filters">
@@ -54,7 +55,7 @@
 	<members>
 		<member name="access" type="int" setter="set_access" getter="get_access" enum="FileDialog.Access" default="0">
 			The file system access scope. See enum [code]Access[/code] constants.
-			[b]Warning:[/b] Currently, in sandboxed environments such as HTML5 builds or sandboxed macOS apps, FileDialog cannot access the host file system. See [url=https://github.com/godotengine/godot-proposals/issues/1123]godot-proposals#1123[/url].
+			[b]Warning:[/b] Currently, in sandboxed environments such as Web builds or sandboxed macOS apps, FileDialog cannot access the host file system. See [url=https://github.com/godotengine/godot-proposals/issues/1123]godot-proposals#1123[/url].
 		</member>
 		<member name="current_dir" type="String" setter="set_current_dir" getter="get_current_dir">
 			The current working directory of the file dialog.
@@ -75,6 +76,9 @@
 		<member name="mode_overrides_title" type="bool" setter="set_mode_overrides_title" getter="is_mode_overriding_title" default="true">
 			If [code]true[/code], changing the [code]Mode[/code] property will set the window title accordingly (e.g. setting mode to [constant FILE_MODE_OPEN_FILE] will change the window title to "Open a File").
 		</member>
+		<member name="root_subfolder" type="String" setter="set_root_subfolder" getter="get_root_subfolder" default="&quot;&quot;">
+			If non-empty, the given sub-folder will be "root" of this [FileDialog], i.e. user won't be able to go to its parent directory.
+		</member>
 		<member name="show_hidden_files" type="bool" setter="set_show_hidden_files" getter="is_showing_hidden_files" default="false">
 			If [code]true[/code], the dialog will show hidden files.
 		</member>
@@ -82,19 +86,19 @@
 	</members>
 	<signals>
 		<signal name="dir_selected">
-			<argument index="0" name="dir" type="String" />
+			<param index="0" name="dir" type="String" />
 			<description>
 				Emitted when the user selects a directory.
 			</description>
 		</signal>
 		<signal name="file_selected">
-			<argument index="0" name="path" type="String" />
+			<param index="0" name="path" type="String" />
 			<description>
 				Emitted when the user selects a file by double-clicking it or pressing the [b]OK[/b] button.
 			</description>
 		</signal>
 		<signal name="files_selected">
-			<argument index="0" name="paths" type="PackedStringArray" />
+			<param index="0" name="paths" type="PackedStringArray" />
 			<description>
 				Emitted when the user selects multiple files.
 			</description>
@@ -127,13 +131,13 @@
 		</constant>
 	</constants>
 	<theme_items>
-		<theme_item name="file_icon_modulate" data_type="color" type="Color" default="Color(1, 1, 1, 1)">
-			The color modulation applied to the file icon.
-		</theme_item>
-		<theme_item name="files_disabled" data_type="color" type="Color" default="Color(1, 1, 1, 0.25)">
+		<theme_item name="file_disabled_color" data_type="color" type="Color" default="Color(1, 1, 1, 0.25)">
 			The color tint for disabled files (when the [FileDialog] is used in open folder mode).
 		</theme_item>
-		<theme_item name="folder_icon_modulate" data_type="color" type="Color" default="Color(1, 1, 1, 1)">
+		<theme_item name="file_icon_color" data_type="color" type="Color" default="Color(1, 1, 1, 1)">
+			The color modulation applied to the file icon.
+		</theme_item>
+		<theme_item name="folder_icon_color" data_type="color" type="Color" default="Color(1, 1, 1, 1)">
 			The color modulation applied to the folder icon.
 		</theme_item>
 		<theme_item name="back_folder" data_type="icon" type="Texture2D">

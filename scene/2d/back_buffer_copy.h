@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef BACKBUFFERCOPY_H
-#define BACKBUFFERCOPY_H
+#ifndef BACK_BUFFER_COPY_H
+#define BACK_BUFFER_COPY_H
 
 #include "scene/2d/node_2d.h"
 
@@ -51,6 +51,7 @@ private:
 
 protected:
 	static void _bind_methods();
+	void _validate_property(PropertyInfo &p_property) const;
 
 public:
 #ifdef TOOLS_ENABLED
@@ -71,4 +72,4 @@ public:
 
 VARIANT_ENUM_CAST(BackBufferCopy::CopyMode);
 
-#endif // BACKBUFFERCOPY_H
+#endif // BACK_BUFFER_COPY_H

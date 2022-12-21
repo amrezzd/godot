@@ -30,9 +30,10 @@
 
 #include "editor_run_native.h"
 
-#include "editor/editor_export.h"
 #include "editor/editor_node.h"
 #include "editor/editor_scale.h"
+#include "editor/editor_settings.h"
+#include "editor/export/editor_export_platform.h"
 
 void EditorRunNative::_notification(int p_what) {
 	switch (p_what) {
@@ -49,12 +50,10 @@ void EditorRunNative::_notification(int p_what) {
 					im->clear_mipmaps();
 					if (!im->is_empty()) {
 						im->resize(16 * EDSCALE, 16 * EDSCALE);
-						Ref<ImageTexture> small_icon;
-						small_icon.instantiate();
-						small_icon->create_from_image(im);
+						Ref<ImageTexture> small_icon = ImageTexture::create_from_image(im);
 						MenuButton *mb = memnew(MenuButton);
-						mb->get_popup()->connect("id_pressed", callable_mp(this, &EditorRunNative::run_native), varray(i));
-						mb->connect("pressed", callable_mp(this, &EditorRunNative::run_native), varray(-1, i));
+						mb->get_popup()->connect("id_pressed", callable_mp(this, &EditorRunNative::run_native).bind(i));
+						mb->connect("pressed", callable_mp(this, &EditorRunNative::run_native).bind(-1, i));
 						mb->set_icon(small_icon);
 						add_child(mb);
 						menus[i] = mb;
@@ -78,9 +77,9 @@ void EditorRunNative::_notification(int p_what) {
 						mb->get_popup()->clear();
 						mb->show();
 						if (dc == 1) {
-							mb->set_tooltip(eep->get_option_tooltip(0));
+							mb->set_tooltip_text(eep->get_option_tooltip(0));
 						} else {
-							mb->set_tooltip(eep->get_options_tooltip());
+							mb->set_tooltip_text(eep->get_options_tooltip());
 							for (int i = 0; i < dc; i++) {
 								mb->get_popup()->add_icon_item(eep->get_option_icon(i), eep->get_option_label(i));
 								mb->get_popup()->set_item_tooltip(-1, eep->get_option_tooltip(i));
@@ -135,7 +134,7 @@ Error EditorRunNative::run_native(int p_idx, int p_platform) {
 
 	bool deploy_debug_remote = is_deploy_debug_remote_enabled();
 	bool deploy_dumb = EditorSettings::get_singleton()->get_project_metadata("debug_options", "run_file_server", false);
-	bool debug_collisions = EditorSettings::get_singleton()->get_project_metadata("debug_options", "run_debug_collisons", false);
+	bool debug_collisions = EditorSettings::get_singleton()->get_project_metadata("debug_options", "run_debug_collisions", false);
 	bool debug_navigation = EditorSettings::get_singleton()->get_project_metadata("debug_options", "run_debug_navigation", false);
 
 	if (deploy_debug_remote) {
@@ -145,7 +144,7 @@ Error EditorRunNative::run_native(int p_idx, int p_platform) {
 		flags |= EditorExportPlatform::DEBUG_FLAG_DUMB_CLIENT;
 	}
 	if (debug_collisions) {
-		flags |= EditorExportPlatform::DEBUG_FLAG_VIEW_COLLISONS;
+		flags |= EditorExportPlatform::DEBUG_FLAG_VIEW_COLLISIONS;
 	}
 	if (debug_navigation) {
 		flags |= EditorExportPlatform::DEBUG_FLAG_VIEW_NAVIGATION;

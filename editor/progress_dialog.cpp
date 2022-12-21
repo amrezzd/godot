@@ -50,7 +50,7 @@ void BackgroundProgress::_add_task(const String &p_task, const String &p_label, 
 	Control *ec = memnew(Control);
 	ec->set_h_size_flags(SIZE_EXPAND_FILL);
 	ec->set_v_size_flags(SIZE_EXPAND_FILL);
-	t.progress->set_anchors_and_offsets_preset(Control::PRESET_WIDE);
+	t.progress->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
 	ec->add_child(t.progress);
 	ec->set_custom_minimum_size(Size2(80, 5) * EDSCALE);
 	t.hb->add_child(ec);
@@ -176,7 +176,7 @@ void ProgressDialog::add_task(const String &p_task, const String &p_label, int p
 	} else {
 		cancel_hb->hide();
 	}
-	cancel_hb->raise();
+	cancel_hb->move_to_front();
 	cancelled = false;
 	_popup();
 	if (p_can_cancel) {
@@ -207,7 +207,9 @@ bool ProgressDialog::task_step(const String &p_task, const String &p_state, int 
 		DisplayServer::get_singleton()->process_events();
 	}
 
+#ifndef ANDROID_ENABLED
 	Main::iteration(); // this will not work on a lot of platforms, so it's only meant for the editor
+#endif
 	return cancelled;
 }
 
@@ -235,7 +237,7 @@ void ProgressDialog::_bind_methods() {
 ProgressDialog::ProgressDialog() {
 	main = memnew(VBoxContainer);
 	add_child(main);
-	main->set_anchors_and_offsets_preset(Control::PRESET_WIDE);
+	main->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
 	set_exclusive(true);
 	last_progress_tick = 0;
 	singleton = this;

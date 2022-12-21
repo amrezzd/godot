@@ -141,7 +141,8 @@ uint32_t SurfaceTool::VertexHasher::hash(const Vertex &p_vtx) {
 	h = hash_djb2_buffer((const uint8_t *)p_vtx.bones.ptr(), p_vtx.bones.size() * sizeof(int), h);
 	h = hash_djb2_buffer((const uint8_t *)p_vtx.weights.ptr(), p_vtx.weights.size() * sizeof(float), h);
 	h = hash_djb2_buffer((const uint8_t *)&p_vtx.custom[0], sizeof(Color) * RS::ARRAY_CUSTOM_COUNT, h);
-	h = hash_djb2_one_32(p_vtx.smooth_group, h);
+	h = hash_murmur3_one_32(p_vtx.smooth_group, h);
+	h = hash_fmix32(h);
 	return h;
 }
 
@@ -985,7 +986,7 @@ void SurfaceTool::append_from(const Ref<Mesh> &p_existing, int p_surface, const 
 		format = 0;
 	}
 
-	uint32_t nformat;
+	uint32_t nformat = 0;
 	LocalVector<Vertex> nvertices;
 	LocalVector<int> nindices;
 	_create_list(p_existing, p_surface, &nvertices, &nindices, nformat);

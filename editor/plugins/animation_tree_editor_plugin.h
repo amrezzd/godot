@@ -32,12 +32,9 @@
 #define ANIMATION_TREE_EDITOR_PLUGIN_H
 
 #include "editor/editor_plugin.h"
-#include "editor/property_editor.h"
 #include "scene/animation/animation_tree.h"
 #include "scene/gui/button.h"
 #include "scene/gui/graph_edit.h"
-#include "scene/gui/popup.h"
-#include "scene/gui/tree.h"
 
 class EditorFileDialog;
 
@@ -63,20 +60,23 @@ class AnimationTreeEditor : public VBoxContainer {
 	Vector<AnimationTreeNodeEditorPlugin *> editors;
 
 	void _update_path();
+	void _clear_editors();
 	ObjectID current_root;
 
 	void _path_button_pressed(int p_path);
+	void _animation_list_changed();
 
 	static Vector<String> get_animation_list();
 
 protected:
 	void _notification(int p_what);
+	void _node_removed(Node *p_node);
 	static void _bind_methods();
 
 	static AnimationTreeEditor *singleton;
 
 public:
-	AnimationTree *get_tree() { return tree; }
+	AnimationTree *get_animation_tree() { return tree; }
 	void add_plugin(AnimationTreeNodeEditorPlugin *p_editor);
 	void remove_plugin(AnimationTreeNodeEditorPlugin *p_editor);
 

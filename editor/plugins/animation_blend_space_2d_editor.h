@@ -33,17 +33,22 @@
 
 #include "editor/editor_plugin.h"
 #include "editor/plugins/animation_tree_editor_plugin.h"
-#include "editor/property_editor.h"
 #include "scene/animation/animation_blend_space_2d.h"
 #include "scene/gui/button.h"
 #include "scene/gui/graph_edit.h"
 #include "scene/gui/popup.h"
+#include "scene/gui/separator.h"
 #include "scene/gui/tree.h"
+
+class CheckBox;
+class OptionButton;
+class PanelContainer;
 
 class AnimationNodeBlendSpace2DEditor : public AnimationTreeNodeEditorPlugin {
 	GDCLASS(AnimationNodeBlendSpace2DEditor, AnimationTreeNodeEditorPlugin);
 
 	Ref<AnimationNodeBlendSpace2D> blend_space;
+	bool read_only = false;
 
 	PanelContainer *panel = nullptr;
 	Button *tool_blend = nullptr;
@@ -55,6 +60,7 @@ class AnimationNodeBlendSpace2DEditor : public AnimationTreeNodeEditorPlugin {
 	Button *snap = nullptr;
 	SpinBox *snap_x = nullptr;
 	SpinBox *snap_y = nullptr;
+	CheckBox *sync = nullptr;
 	OptionButton *interpolation = nullptr;
 
 	Button *auto_triangles = nullptr;
@@ -80,8 +86,6 @@ class AnimationNodeBlendSpace2DEditor : public AnimationTreeNodeEditorPlugin {
 	Label *error_label = nullptr;
 
 	bool updating;
-
-	UndoRedo *undo_redo = nullptr;
 
 	static AnimationNodeBlendSpace2DEditor *singleton;
 

@@ -45,6 +45,8 @@
 #include "scene/resources/theme.h"
 
 class EditorFileDialog;
+class PanelContainer;
+class TabContainer;
 
 class ThemeItemImportTree : public VBoxContainer {
 	GDCLASS(ThemeItemImportTree, VBoxContainer);
@@ -198,6 +200,7 @@ class ThemeItemEditorDialog : public AcceptDialog {
 
 	Tree *edit_type_list = nullptr;
 	LineEdit *edit_add_type_value = nullptr;
+	Button *edit_add_type_button = nullptr;
 	String edited_item_type;
 
 	Button *edit_items_add_color = nullptr;

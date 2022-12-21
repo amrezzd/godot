@@ -30,6 +30,7 @@
 
 #include "dynamic_font_import_settings.h"
 
+#include "core/config/project_settings.h"
 #include "editor/editor_file_dialog.h"
 #include "editor/editor_file_system.h"
 #include "editor/editor_inspector.h"
@@ -41,50 +42,44 @@
 /* Settings data                                                         */
 /*************************************************************************/
 
-class DynamicFontImportSettingsData : public RefCounted {
-	GDCLASS(DynamicFontImportSettingsData, RefCounted)
-	friend class DynamicFontImportSettings;
+bool DynamicFontImportSettingsData::_set(const StringName &p_name, const Variant &p_value) {
+	if (defaults.has(p_name) && defaults[p_name] == p_value) {
+		settings.erase(p_name);
+	} else {
+		settings[p_name] = p_value;
+	}
+	return true;
+}
 
-	HashMap<StringName, Variant> settings;
-	HashMap<StringName, Variant> defaults;
-	List<ResourceImporter::ImportOption> options;
-	DynamicFontImportSettings *owner = nullptr;
-
-	bool _set(const StringName &p_name, const Variant &p_value) {
-		if (defaults.has(p_name) && defaults[p_name] == p_value) {
-			settings.erase(p_name);
-		} else {
-			settings[p_name] = p_value;
-		}
+bool DynamicFontImportSettingsData::_get(const StringName &p_name, Variant &r_ret) const {
+	if (settings.has(p_name)) {
+		r_ret = settings[p_name];
 		return true;
 	}
-
-	bool _get(const StringName &p_name, Variant &r_ret) const {
-		if (settings.has(p_name)) {
-			r_ret = settings[p_name];
-			return true;
-		}
-		if (defaults.has(p_name)) {
-			r_ret = defaults[p_name];
-			return true;
-		}
-		return false;
+	if (defaults.has(p_name)) {
+		r_ret = defaults[p_name];
+		return true;
 	}
+	return false;
+}
 
-	void _get_property_list(List<PropertyInfo> *p_list) const {
-		for (const List<ResourceImporter::ImportOption>::Element *E = options.front(); E; E = E->next()) {
-			if (owner && owner->import_settings_data.is_valid()) {
-				if (owner->import_settings_data->get("multichannel_signed_distance_field") && (E->get().option.name == "size" || E->get().option.name == "outline_size" || E->get().option.name == "oversampling")) {
-					continue;
-				}
-				if (!owner->import_settings_data->get("multichannel_signed_distance_field") && (E->get().option.name == "msdf_pixel_range" || E->get().option.name == "msdf_size")) {
-					continue;
-				}
+void DynamicFontImportSettingsData::_get_property_list(List<PropertyInfo> *p_list) const {
+	for (const List<ResourceImporter::ImportOption>::Element *E = options.front(); E; E = E->next()) {
+		if (owner && owner->import_settings_data.is_valid()) {
+			if (owner->import_settings_data->get("multichannel_signed_distance_field") && (E->get().option.name == "size" || E->get().option.name == "outline_size" || E->get().option.name == "oversampling")) {
+				continue;
 			}
-			p_list->push_back(E->get().option);
+			if (!owner->import_settings_data->get("multichannel_signed_distance_field") && (E->get().option.name == "msdf_pixel_range" || E->get().option.name == "msdf_size")) {
+				continue;
+			}
 		}
+		p_list->push_back(E->get().option);
 	}
-};
+}
+
+Ref<FontFile> DynamicFontImportSettingsData::get_font() const {
+	return fd;
+}
 
 /*************************************************************************/
 /* Glyph ranges                                                          */
@@ -308,6 +303,7 @@ static UniRange unicode_ranges[] = {
 	{ 0x10D00, 0x10D3F, U"Hanifi Rohingya" },
 	{ 0x10E60, 0x10E7F, U"Rumi Numeral Symbols" },
 	{ 0x10E80, 0x10EBF, U"Yezidi" },
+	{ 0x10EC0, 0x10EFF, U"Arabic Extended-C" },
 	{ 0x10F00, 0x10F2F, U"Old Sogdian" },
 	{ 0x10F30, 0x10F6F, U"Sogdian" },
 	{ 0x10F70, 0x10FAF, U"Old Uyghur" },
@@ -339,11 +335,13 @@ static UniRange unicode_ranges[] = {
 	{ 0x11A50, 0x11AAF, U"Soyombo" },
 	{ 0x11AB0, 0x11ABF, U"Unified Canadian Aboriginal Syllabics Extended-A" },
 	{ 0x11AC0, 0x11AFF, U"Pau Cin Hau" },
+	{ 0x11B00, 0x11B5F, U"Devanagari Extended-A" },
 	{ 0x11C00, 0x11C6F, U"Bhaiksuki" },
 	{ 0x11C70, 0x11CBF, U"Marchen" },
 	{ 0x11D00, 0x11D5F, U"Masaram Gondi" },
 	{ 0x11D60, 0x11DAF, U"Gunjala Gondi" },
 	{ 0x11EE0, 0x11EFF, U"Makasar" },
+	{ 0x11F00, 0x11F5F, U"Kawi" },
 	{ 0x11FB0, 0x11FBF, U"Lisu Supplement" },
 	{ 0x11FC0, 0x11FFF, U"Tamil Supplement" },
 	{ 0x12000, 0x123FF, U"Cuneiform" },
@@ -376,6 +374,7 @@ static UniRange unicode_ranges[] = {
 	{ 0x1D000, 0x1D0FF, U"Byzantine Musical Symbols" },
 	{ 0x1D100, 0x1D1FF, U"Musical Symbols" },
 	{ 0x1D200, 0x1D24F, U"Ancient Greek Musical Notation" },
+	{ 0x1D2C0, 0x1D2DF, U"Kaktovik Numerals" },
 	{ 0x1D2E0, 0x1D2FF, U"Mayan Numerals" },
 	{ 0x1D300, 0x1D35F, U"Tai Xuan Jing Symbols" },
 	{ 0x1D360, 0x1D37F, U"Counting Rod Numerals" },
@@ -383,9 +382,11 @@ static UniRange unicode_ranges[] = {
 	{ 0x1D800, 0x1DAAF, U"Sutton SignWriting" },
 	{ 0x1DF00, 0x1DFFF, U"Latin Extended-G" },
 	{ 0x1E000, 0x1E02F, U"Glagolitic Supplement" },
+	{ 0x1E030, 0x1E08F, U"Cyrillic Extended-D" },
 	{ 0x1E100, 0x1E14F, U"Nyiakeng Puachue Hmong" },
 	{ 0x1E290, 0x1E2BF, U"Toto" },
 	{ 0x1E2C0, 0x1E2FF, U"Wancho" },
+	{ 0x1E4D0, 0x1E4FF, U"Nag Mundari" },
 	{ 0x1E7E0, 0x1E7FF, U"Ethiopic Extended-B" },
 	{ 0x1E800, 0x1E8DF, U"Mende Kikakui" },
 	{ 0x1E900, 0x1E95F, U"Adlam" },
@@ -415,6 +416,7 @@ static UniRange unicode_ranges[] = {
 	{ 0x2CEB0, 0x2EBEF, U"CJK Unified Ideographs Extension F" },
 	{ 0x2F800, 0x2FA1F, U"CJK Compatibility Ideographs Supplement" },
 	{ 0x30000, 0x3134F, U"CJK Unified Ideographs Extension G" },
+	{ 0x31350, 0x323AF, U"CJK Unified Ideographs Extension H" },
 	//{ 0xE0000, 0xE007F, U"Tags" },
 	//{ 0xE0100, 0xE01EF, U"Variation Selectors Supplement" },
 	{ 0xF0000, 0xFFFFF, U"Supplementary Private Use Area-A" },
@@ -454,59 +456,35 @@ void DynamicFontImportSettings::_add_glyph_range_item(int32_t p_start, int32_t p
 void DynamicFontImportSettings::_main_prop_changed(const String &p_edited_property) {
 	// Update font preview.
 
-	if (p_edited_property == "face_index") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_face_index(import_settings_data->get("face_index"));
-		}
-	} else if (p_edited_property == "antialiased") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_antialiased(import_settings_data->get("antialiased"));
-		}
-	} else if (p_edited_property == "generate_mipmaps") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_generate_mipmaps(import_settings_data->get("generate_mipmaps"));
-		}
-	} else if (p_edited_property == "multichannel_signed_distance_field") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_multichannel_signed_distance_field(import_settings_data->get("multichannel_signed_distance_field"));
-		}
-		_variation_selected();
-		_variations_validate();
-	} else if (p_edited_property == "msdf_pixel_range") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_msdf_pixel_range(import_settings_data->get("msdf_pixel_range"));
-		}
-	} else if (p_edited_property == "msdf_size") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_msdf_size(import_settings_data->get("msdf_size"));
-		}
-	} else if (p_edited_property == "force_autohinter") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_force_autohinter(import_settings_data->get("force_autohinter"));
-		}
-	} else if (p_edited_property == "hinting") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_hinting((TextServer::Hinting)import_settings_data->get("hinting").operator int());
-		}
-	} else if (p_edited_property == "subpixel_positioning") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_subpixel_positioning((TextServer::SubpixelPositioning)import_settings_data->get("subpixel_positioning").operator int());
-		}
-	} else if (p_edited_property == "embolden") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_embolden(import_settings_data->get("embolden"));
-		}
-	} else if (p_edited_property == "transform") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_transform(import_settings_data->get("transform"));
-		}
-	} else if (p_edited_property == "oversampling") {
-		if (font_preview->get_data_count() > 0) {
-			font_preview->get_data(0)->set_oversampling(import_settings_data->get("oversampling"));
+	if (font_preview.is_valid()) {
+		if (p_edited_property == "antialiasing") {
+			font_preview->set_antialiasing((TextServer::FontAntialiasing)import_settings_data->get("antialiasing").operator int());
+		} else if (p_edited_property == "generate_mipmaps") {
+			font_preview->set_generate_mipmaps(import_settings_data->get("generate_mipmaps"));
+		} else if (p_edited_property == "multichannel_signed_distance_field") {
+			font_preview->set_multichannel_signed_distance_field(import_settings_data->get("multichannel_signed_distance_field"));
+			_variation_selected();
+			_variations_validate();
+		} else if (p_edited_property == "msdf_pixel_range") {
+			font_preview->set_msdf_pixel_range(import_settings_data->get("msdf_pixel_range"));
+		} else if (p_edited_property == "msdf_size") {
+			font_preview->set_msdf_size(import_settings_data->get("msdf_size"));
+		} else if (p_edited_property == "allow_system_fallback") {
+			font_preview->set_allow_system_fallback(import_settings_data->get("allow_system_fallback"));
+		} else if (p_edited_property == "force_autohinter") {
+			font_preview->set_force_autohinter(import_settings_data->get("force_autohinter"));
+		} else if (p_edited_property == "hinting") {
+			font_preview->set_hinting((TextServer::Hinting)import_settings_data->get("hinting").operator int());
+		} else if (p_edited_property == "subpixel_positioning") {
+			font_preview->set_subpixel_positioning((TextServer::SubpixelPositioning)import_settings_data->get("subpixel_positioning").operator int());
+		} else if (p_edited_property == "oversampling") {
+			font_preview->set_oversampling(import_settings_data->get("oversampling"));
 		}
 	}
+
 	font_preview_label->add_theme_font_override("font", font_preview);
-	font_preview_label->update();
+	font_preview_label->add_theme_font_size_override("font_size", 200 * EDSCALE);
+	font_preview_label->queue_redraw();
 }
 
 /*************************************************************************/
@@ -517,9 +495,9 @@ void DynamicFontImportSettings::_variation_add() {
 	TreeItem *vars_item = vars_list->create_item(vars_list_root);
 	ERR_FAIL_NULL(vars_item);
 
-	vars_item->set_text(0, TTR("New configuration"));
+	vars_item->set_text(0, TTR("New Configuration"));
 	vars_item->set_editable(0, true);
-	vars_item->add_button(1, vars_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove Variation"));
+	vars_item->add_button(1, get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove Variation"));
 	vars_item->set_button_color(1, 0, Color(1, 1, 1, 0.75));
 
 	Ref<DynamicFontImportSettingsData> import_variation_data;
@@ -534,6 +512,7 @@ void DynamicFontImportSettings::_variation_add() {
 	import_variation_data->options = options_variations;
 	inspector_vars->edit(import_variation_data.ptr());
 	import_variation_data->notify_property_list_changed();
+	import_variation_data->fd = font_main;
 
 	vars_item->set_metadata(0, import_variation_data);
 
@@ -548,6 +527,16 @@ void DynamicFontImportSettings::_variation_selected() {
 
 		inspector_vars->edit(import_variation_data.ptr());
 		import_variation_data->notify_property_list_changed();
+
+		label_glyphs->set_text(TTR("Preloaded glyphs: ") + itos(import_variation_data->selected_glyphs.size()));
+		_range_selected();
+		_change_text_opts();
+
+		btn_fill->set_disabled(false);
+		btn_fill_locales->set_disabled(false);
+	} else {
+		btn_fill->set_disabled(true);
+		btn_fill_locales->set_disabled(true);
 	}
 }
 
@@ -571,6 +560,15 @@ void DynamicFontImportSettings::_variation_remove(Object *p_item, int p_column, 
 	}
 
 	_variations_validate();
+
+	vars_item = vars_list->get_selected();
+	if (vars_item) {
+		btn_fill->set_disabled(false);
+		btn_fill_locales->set_disabled(false);
+	} else {
+		btn_fill->set_disabled(true);
+		btn_fill_locales->set_disabled(true);
+	}
 }
 
 void DynamicFontImportSettings::_variation_changed(const String &p_edited_property) {
@@ -601,6 +599,12 @@ void DynamicFontImportSettings::_variations_validate() {
 			}
 		}
 	}
+	if ((TextServer::FontAntialiasing)(int)import_settings_data->get("antialiasing") == TextServer::FONT_ANTIALIASING_LCD) {
+		warn += "\n" + TTR("Note: LCD Subpixel antialiasing is selected, each of the glyphs will be pre-rendered for all supported subpixel layouts (5x).");
+	}
+	if ((TextServer::SubpixelPositioning)(int)import_settings_data->get("subpixel_positioning") != TextServer::SUBPIXEL_POSITIONING_DISABLED) {
+		warn += "\n" + TTR("Note: Subpixel positioning is selected, each of the glyphs might be pre-rendered for multiple subpixel offsets (up to 4x).");
+	}
 	if (warn.is_empty()) {
 		label_warn->set_text("");
 		label_warn->hide();
@@ -611,63 +615,112 @@ void DynamicFontImportSettings::_variations_validate() {
 }
 
 /*************************************************************************/
-/* Page 3 callbacks: Text to select glyphs                               */
+/* Page 2.1 callbacks: Text to select glyphs                             */
 /*************************************************************************/
 
 void DynamicFontImportSettings::_change_text_opts() {
-	Vector<String> ftr = ftr_edit->get_text().split(",");
-	for (int i = 0; i < ftr.size(); i++) {
-		Vector<String> tokens = ftr[i].split("=");
-		if (tokens.size() == 2) {
-			text_edit->set_opentype_feature(tokens[0], tokens[1].to_int());
-		} else if (tokens.size() == 1) {
-			text_edit->set_opentype_feature(tokens[0], 1);
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
+	Ref<FontVariation> font_main_text;
+	font_main_text.instantiate();
+	font_main_text->set_base_font(font_main);
+	font_main_text->set_opentype_features(text_settings_data->get("opentype_features"));
+	font_main_text->set_variation_opentype(import_variation_data->get("variation_opentype"));
+	font_main_text->set_variation_embolden(import_variation_data->get("variation_embolden"));
+	font_main_text->set_variation_face_index(import_variation_data->get("variation_face_index"));
+	font_main_text->set_variation_transform(import_variation_data->get("variation_transform"));
+
+	text_edit->add_theme_font_override("font", font_main_text);
+}
+
+void DynamicFontImportSettings::_glyph_update_lbl() {
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
+	int linked_glyphs = 0;
+	for (const char32_t &c : import_variation_data->selected_chars) {
+		if (import_variation_data->selected_glyphs.has(font_main->get_glyph_index(16, c))) {
+			linked_glyphs++;
 		}
 	}
-	text_edit->set_language(lang_edit->get_text());
+	int unlinked_glyphs = import_variation_data->selected_glyphs.size() - linked_glyphs;
+	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(unlinked_glyphs + import_variation_data->selected_chars.size()));
 }
 
 void DynamicFontImportSettings::_glyph_clear() {
-	selected_glyphs.clear();
-	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(selected_glyphs.size()));
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
+	import_variation_data->selected_glyphs.clear();
+	_glyph_update_lbl();
 	_range_selected();
 }
 
 void DynamicFontImportSettings::_glyph_text_selected() {
-	Dictionary ftrs;
-	Vector<String> ftr = ftr_edit->get_text().split(",");
-	for (int i = 0; i < ftr.size(); i++) {
-		Vector<String> tokens = ftr[i].split("=");
-		if (tokens.size() == 2) {
-			ftrs[tokens[0]] = tokens[1].to_int();
-		} else if (tokens.size() == 1) {
-			ftrs[tokens[0]] = 1;
-		}
-	}
+	Ref<DynamicFontImportSettingsData> import_variation_data;
 
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
 	RID text_rid = TS->create_shaped_text();
 	if (text_rid.is_valid()) {
-		TS->shaped_text_add_string(text_rid, text_edit->get_text(), font_main->get_rids(), 16, ftrs, text_edit->get_language());
+		TS->shaped_text_add_string(text_rid, text_edit->get_text(), font_main->get_rids(), 16, text_settings_data->get("opentype_features"), text_settings_data->get("language"));
 		TS->shaped_text_shape(text_rid);
 		const Glyph *gl = TS->shaped_text_get_glyphs(text_rid);
 		const int gl_size = TS->shaped_text_get_glyph_count(text_rid);
 
 		for (int i = 0; i < gl_size; i++) {
 			if (gl[i].font_rid.is_valid() && gl[i].index != 0) {
-				selected_glyphs.insert(gl[i].index);
+				import_variation_data->selected_glyphs.insert(gl[i].index);
 			}
 		}
 		TS->free_rid(text_rid);
-		label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(selected_glyphs.size()));
+		_glyph_update_lbl();
 	}
 	_range_selected();
 }
 
 /*************************************************************************/
-/* Page 4 callbacks: Character map                                       */
+/* Page 2.2 callbacks: Character map                                     */
 /*************************************************************************/
 
 void DynamicFontImportSettings::_glyph_selected() {
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
 	TreeItem *item = glyph_table->get_selected();
 	ERR_FAIL_NULL(item);
 
@@ -685,7 +738,7 @@ void DynamicFontImportSettings::_glyph_selected() {
 			item->clear_custom_bg_color(glyph_table->get_selected_column());
 		}
 	}
-	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(selected_glyphs.size()));
+	_glyph_update_lbl();
 
 	item = glyph_tree->get_selected();
 	ERR_FAIL_NULL(item);
@@ -698,7 +751,7 @@ void DynamicFontImportSettings::_glyph_selected() {
 			total_chars--;
 		}
 
-		if (selected_chars.has(i)) {
+		if (import_variation_data->selected_chars.has(i)) {
 			selected_count++;
 		}
 	}
@@ -728,6 +781,16 @@ void DynamicFontImportSettings::_range_selected() {
 }
 
 void DynamicFontImportSettings::_edit_range(int32_t p_start, int32_t p_end) {
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
 	glyph_table->clear();
 
 	TreeItem *root = glyph_table->create_item();
@@ -739,6 +802,8 @@ void DynamicFontImportSettings::_edit_range(int32_t p_start, int32_t p_end) {
 
 	TreeItem *item = nullptr;
 	int col = 0;
+
+	Ref<Font> font_main_big = font_main->duplicate();
 
 	for (int32_t c = p_start; c <= p_end; c++) {
 		if (col == 0) {
@@ -752,7 +817,7 @@ void DynamicFontImportSettings::_edit_range(int32_t p_start, int32_t p_end) {
 		if (font_main->has_char(c)) {
 			item->set_text(col + 1, String::chr(c));
 			item->set_custom_color(col + 1, Color(1, 1, 1));
-			if (selected_chars.has(c) || (font_main->get_data(0).is_valid() && selected_glyphs.has(font_main->get_data(0)->get_glyph_index(get_theme_font_size(SNAME("font_size")) * 2, c)))) {
+			if (import_variation_data->selected_chars.has(c) || import_variation_data->selected_glyphs.has(font_main->get_glyph_index(16, c))) {
 				item->set_custom_color(col + 1, fcol);
 				item->set_custom_bg_color(col + 1, scol);
 			} else {
@@ -765,7 +830,8 @@ void DynamicFontImportSettings::_edit_range(int32_t p_start, int32_t p_end) {
 		item->set_metadata(col + 1, c);
 		item->set_text_alignment(col + 1, HORIZONTAL_ALIGNMENT_CENTER);
 		item->set_selectable(col + 1, true);
-		item->set_custom_font(col + 1, font_main);
+
+		item->set_custom_font(col + 1, font_main_big);
 		item->set_custom_font_size(col + 1, get_theme_font_size(SNAME("font_size")) * 2);
 
 		col++;
@@ -773,41 +839,61 @@ void DynamicFontImportSettings::_edit_range(int32_t p_start, int32_t p_end) {
 			col = 0;
 		}
 	}
-	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(selected_glyphs.size()));
+	_glyph_update_lbl();
 }
 
 bool DynamicFontImportSettings::_char_update(int32_t p_char) {
-	if (selected_chars.has(p_char)) {
-		selected_chars.erase(p_char);
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
 		return false;
-	} else if (font_main->get_data(0).is_valid() && selected_glyphs.has(font_main->get_data(0)->get_glyph_index(get_theme_font_size(SNAME("font_size")) * 2, p_char))) {
-		selected_glyphs.erase(font_main->get_data(0)->get_glyph_index(get_theme_font_size(SNAME("font_size")) * 2, p_char));
+	}
+
+	if (import_variation_data->selected_chars.has(p_char)) {
+		import_variation_data->selected_chars.erase(p_char);
+		return false;
+	} else if (font_main.is_valid() && font_main.is_valid() && import_variation_data->selected_glyphs.has(font_main->get_glyph_index(16, p_char))) {
+		import_variation_data->selected_glyphs.erase(font_main->get_glyph_index(16, p_char));
 		return false;
 	} else {
-		selected_chars.insert(p_char);
+		import_variation_data->selected_chars.insert(p_char);
 		return true;
 	}
 }
 
 void DynamicFontImportSettings::_range_update(int32_t p_start, int32_t p_end) {
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
 	bool all_selected = true;
 	for (int32_t i = p_start; i <= p_end; i++) {
 		if (font_main->has_char(i)) {
-			if (font_main->get_data(0).is_valid()) {
-				all_selected = all_selected && (selected_chars.has(i) || (font_main->get_data(0).is_valid() && selected_glyphs.has(font_main->get_data(0)->get_glyph_index(get_theme_font_size(SNAME("font_size")) * 2, i))));
+			if (font_main.is_valid()) {
+				all_selected = all_selected && (import_variation_data->selected_chars.has(i) || import_variation_data->selected_glyphs.has(font_main->get_glyph_index(16, i)));
 			} else {
-				all_selected = all_selected && selected_chars.has(i);
+				all_selected = all_selected && import_variation_data->selected_chars.has(i);
 			}
 		}
 	}
 	for (int32_t i = p_start; i <= p_end; i++) {
 		if (font_main->has_char(i)) {
 			if (!all_selected) {
-				selected_chars.insert(i);
+				import_variation_data->selected_chars.insert(i);
 			} else {
-				selected_chars.erase(i);
-				if (font_main->get_data(0).is_valid()) {
-					selected_glyphs.erase(font_main->get_data(0)->get_glyph_index(get_theme_font_size(SNAME("font_size")) * 2, i));
+				import_variation_data->selected_chars.erase(i);
+				if (font_main.is_valid()) {
+					import_variation_data->selected_glyphs.erase(font_main->get_glyph_index(16, i));
 				}
 			}
 		}
@@ -817,106 +903,6 @@ void DynamicFontImportSettings::_range_update(int32_t p_start, int32_t p_end) {
 	TreeItem *item = glyph_tree->get_selected();
 	ERR_FAIL_NULL(item);
 	item->set_checked(0, !all_selected);
-}
-
-/*************************************************************************/
-/* Page 5 callbacks: CMetadata override                                  */
-/*************************************************************************/
-
-void DynamicFontImportSettings::_lang_add() {
-	locale_select->popup_locale_dialog();
-}
-
-void DynamicFontImportSettings::_lang_add_item(const String &p_locale) {
-	TreeItem *lang_item = lang_list->create_item(lang_list_root);
-	ERR_FAIL_NULL(lang_item);
-
-	lang_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-	lang_item->set_editable(0, true);
-	lang_item->set_checked(0, false);
-	lang_item->set_text(1, p_locale);
-	lang_item->set_editable(1, true);
-	lang_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-	lang_item->set_button_color(2, 0, Color(1, 1, 1, 0.75));
-}
-
-void DynamicFontImportSettings::_lang_remove(Object *p_item, int p_column, int p_id, MouseButton p_button) {
-	if (p_button != MouseButton::LEFT) {
-		return;
-	}
-
-	TreeItem *lang_item = (TreeItem *)p_item;
-	ERR_FAIL_NULL(lang_item);
-
-	lang_list_root->remove_child(lang_item);
-	memdelete(lang_item);
-}
-
-void DynamicFontImportSettings::_ot_add() {
-	menu_ot->set_position(ot_list->get_screen_transform().xform(ot_list->get_local_mouse_position()));
-	menu_ot->set_size(Vector2(1, 1));
-	menu_ot->popup();
-}
-
-void DynamicFontImportSettings::_ot_add_item(int p_option) {
-	String name = TS->tag_to_name(p_option);
-	for (TreeItem *ot_item = ot_list_root->get_first_child(); ot_item; ot_item = ot_item->get_next()) {
-		if (ot_item->get_text(0) == name) {
-			return;
-		}
-	}
-	TreeItem *ot_item = ot_list->create_item(ot_list_root);
-	ERR_FAIL_NULL(ot_item);
-
-	ot_item->set_text(0, name);
-	ot_item->set_editable(0, false);
-	ot_item->set_text(1, "1");
-	ot_item->set_editable(1, true);
-	ot_item->add_button(2, ot_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-	ot_item->set_button_color(2, 0, Color(1, 1, 1, 0.75));
-}
-
-void DynamicFontImportSettings::_ot_remove(Object *p_item, int p_column, int p_id, MouseButton p_button) {
-	if (p_button != MouseButton::LEFT) {
-		return;
-	}
-
-	TreeItem *ot_item = (TreeItem *)p_item;
-	ERR_FAIL_NULL(ot_item);
-
-	ot_list_root->remove_child(ot_item);
-	memdelete(ot_item);
-}
-
-void DynamicFontImportSettings::_script_add() {
-	menu_scripts->set_position(script_list->get_screen_position() + script_list->get_local_mouse_position());
-	menu_scripts->reset_size();
-	menu_scripts->popup();
-}
-
-void DynamicFontImportSettings::_script_add_item(int p_option) {
-	TreeItem *script_item = script_list->create_item(script_list_root);
-	ERR_FAIL_NULL(script_item);
-
-	script_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-	script_item->set_editable(0, true);
-	script_item->set_checked(0, false);
-	script_item->set_text(1, script_codes[p_option]);
-	script_item->set_editable(1, true);
-	script_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-	script_item->set_button_color(2, 0, Color(1, 1, 1, 0.75));
-}
-
-void DynamicFontImportSettings::_script_remove(Object *p_item, int p_column, int p_id, MouseButton p_button) {
-	if (p_button != MouseButton::LEFT) {
-		return;
-	}
-
-	TreeItem *script_item = (TreeItem *)p_item;
-	ERR_FAIL_NULL(script_item);
-
-	script_list_root->remove_child(script_item);
-	memdelete(script_item);
 }
 
 /*************************************************************************/
@@ -938,10 +924,7 @@ void DynamicFontImportSettings::_notification(int p_what) {
 
 		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
-			add_lang->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-			add_script->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-			add_var->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-			add_ot->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
+			add_var->set_icon(get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
 		} break;
 	}
 }
@@ -950,98 +933,58 @@ void DynamicFontImportSettings::_re_import() {
 	HashMap<StringName, Variant> main_settings;
 
 	main_settings["face_index"] = import_settings_data->get("face_index");
-	main_settings["antialiased"] = import_settings_data->get("antialiased");
+	main_settings["antialiasing"] = import_settings_data->get("antialiasing");
 	main_settings["generate_mipmaps"] = import_settings_data->get("generate_mipmaps");
 	main_settings["multichannel_signed_distance_field"] = import_settings_data->get("multichannel_signed_distance_field");
 	main_settings["msdf_pixel_range"] = import_settings_data->get("msdf_pixel_range");
 	main_settings["msdf_size"] = import_settings_data->get("msdf_size");
+	main_settings["allow_system_fallback"] = import_settings_data->get("allow_system_fallback");
 	main_settings["force_autohinter"] = import_settings_data->get("force_autohinter");
 	main_settings["hinting"] = import_settings_data->get("hinting");
 	main_settings["subpixel_positioning"] = import_settings_data->get("subpixel_positioning");
-	main_settings["embolden"] = import_settings_data->get("embolden");
-	main_settings["transform"] = import_settings_data->get("transform");
 	main_settings["oversampling"] = import_settings_data->get("oversampling");
+	main_settings["fallbacks"] = import_settings_data->get("fallbacks");
 	main_settings["compress"] = import_settings_data->get("compress");
 
-	Vector<String> variations;
+	Array configurations;
 	for (TreeItem *vars_item = vars_list_root->get_first_child(); vars_item; vars_item = vars_item->get_next()) {
-		String variation;
 		Ref<DynamicFontImportSettingsData> import_variation_data = vars_item->get_metadata(0);
 		ERR_FAIL_NULL(import_variation_data);
 
-		String name = vars_item->get_text(0);
-		variation += ("name=" + name);
+		Dictionary preload_config;
+		preload_config["name"] = vars_item->get_text(0);
+
+		Size2i conf_size = Vector2i(16, 0);
 		for (const KeyValue<StringName, Variant> &E : import_variation_data->settings) {
-			if (!variation.is_empty()) {
-				variation += ",";
+			if (E.key == "size") {
+				conf_size.x = E.value;
 			}
-			variation += (String(E.key) + "=" + String(E.value));
-		}
-		variations.push_back(variation);
-	}
-	main_settings["preload/configurations"] = variations;
-
-	Vector<String> langs_enabled;
-	Vector<String> langs_disabled;
-	for (TreeItem *lang_item = lang_list_root->get_first_child(); lang_item; lang_item = lang_item->get_next()) {
-		bool selected = lang_item->is_checked(0);
-		String name = lang_item->get_text(1);
-		if (selected) {
-			langs_enabled.push_back(name);
-		} else {
-			langs_disabled.push_back(name);
-		}
-	}
-	main_settings["support_overrides/language_enabled"] = langs_enabled;
-	main_settings["support_overrides/language_disabled"] = langs_disabled;
-
-	Vector<String> scripts_enabled;
-	Vector<String> scripts_disabled;
-	for (TreeItem *script_item = script_list_root->get_first_child(); script_item; script_item = script_item->get_next()) {
-		bool selected = script_item->is_checked(0);
-		String name = script_item->get_text(1);
-		if (selected) {
-			scripts_enabled.push_back(name);
-		} else {
-			scripts_disabled.push_back(name);
-		}
-	}
-	main_settings["support_overrides/script_enabled"] = scripts_enabled;
-	main_settings["support_overrides/script_disabled"] = scripts_disabled;
-
-	if (!selected_chars.is_empty()) {
-		Vector<String> ranges;
-		char32_t start = selected_chars.front()->get();
-		for (RBSet<char32_t>::Element *E = selected_chars.front()->next(); E; E = E->next()) {
-			if (E->prev() && ((E->prev()->get() + 1) != E->get())) {
-				ranges.push_back(String("0x") + String::num_int64(start, 16) + String("-0x") + String::num_int64(E->prev()->get(), 16));
-				start = E->get();
+			if (E.key == "outline_size") {
+				conf_size.y = E.value;
+			} else {
+				preload_config[E.key] = E.value;
 			}
 		}
-		ranges.push_back(String("0x") + String::num_int64(start, 16) + String("-0x") + String::num_int64(selected_chars.back()->get(), 16));
-		main_settings["preload/char_ranges"] = ranges;
-	}
+		preload_config["size"] = conf_size;
 
-	if (!selected_glyphs.is_empty()) {
-		Vector<String> ranges;
-		int32_t start = selected_glyphs.front()->get();
-		for (RBSet<int32_t>::Element *E = selected_glyphs.front()->next(); E; E = E->next()) {
-			if (E->prev() && ((E->prev()->get() + 1) != E->get())) {
-				ranges.push_back(String("0x") + String::num_int64(start, 16) + String("-0x") + String::num_int64(E->prev()->get(), 16));
-				start = E->get();
-			}
+		Array chars;
+		for (const char32_t &E : import_variation_data->selected_chars) {
+			chars.push_back(E);
 		}
-		ranges.push_back(String("0x") + String::num_int64(start, 16) + String("-0x") + String::num_int64(selected_glyphs.back()->get(), 16));
-		main_settings["preload/glyph_ranges"] = ranges;
-	}
+		preload_config["chars"] = chars;
 
-	Dictionary ot_ov;
-	for (TreeItem *ot_item = ot_list_root->get_first_child(); ot_item; ot_item = ot_item->get_next()) {
-		String tag = ot_item->get_text(0);
-		int32_t value = ot_item->get_text(1).to_int();
-		ot_ov[tag] = value;
+		Array glyphs;
+		for (const int32_t &E : import_variation_data->selected_glyphs) {
+			glyphs.push_back(E);
+		}
+		preload_config["glyphs"] = glyphs;
+
+		configurations.push_back(preload_config);
 	}
-	main_settings["opentype_feature_overrides"] = ot_ov;
+	main_settings["preload"] = configurations;
+	main_settings["language_support"] = import_settings_data->get("language_support");
+	main_settings["script_support"] = import_settings_data->get("script_support");
+	main_settings["opentype_features"] = import_settings_data->get("opentype_features");
 
 	if (OS::get_singleton()->is_stdout_verbose()) {
 		print_line("Import settings:");
@@ -1053,75 +996,133 @@ void DynamicFontImportSettings::_re_import() {
 	EditorFileSystem::get_singleton()->reimport_file_with_custom_parameters(base_path, "font_data_dynamic", main_settings);
 }
 
+void DynamicFontImportSettings::_locale_edited() {
+	TreeItem *item = locale_tree->get_selected();
+	ERR_FAIL_NULL(item);
+	item->set_checked(0, !item->is_checked(0));
+}
+
+void DynamicFontImportSettings::_process_locales() {
+	Ref<DynamicFontImportSettingsData> import_variation_data;
+
+	TreeItem *vars_item = vars_list->get_selected();
+	if (vars_item) {
+		import_variation_data = vars_item->get_metadata(0);
+	}
+	if (import_variation_data.is_null()) {
+		return;
+	}
+
+	for (int i = 0; i < locale_root->get_child_count(); i++) {
+		TreeItem *item = locale_root->get_child(i);
+		if (item) {
+			if (item->is_checked(0)) {
+				String locale = item->get_text(0);
+				Ref<Translation> tr = ResourceLoader::load(locale);
+				if (tr.is_valid()) {
+					Vector<String> messages = tr->get_translated_message_list();
+					for (const String &E : messages) {
+						RID text_rid = TS->create_shaped_text();
+						if (text_rid.is_valid()) {
+							TS->shaped_text_add_string(text_rid, E, font_main->get_rids(), 16, Dictionary(), tr->get_locale());
+							TS->shaped_text_shape(text_rid);
+							const Glyph *gl = TS->shaped_text_get_glyphs(text_rid);
+							const int gl_size = TS->shaped_text_get_glyph_count(text_rid);
+
+							for (int j = 0; j < gl_size; j++) {
+								if (gl[j].font_rid.is_valid() && gl[j].index != 0) {
+									import_variation_data->selected_glyphs.insert(gl[j].index);
+								}
+							}
+							TS->free_rid(text_rid);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	_glyph_update_lbl();
+	_range_selected();
+}
+
 void DynamicFontImportSettings::open_settings(const String &p_path) {
 	// Load base font data.
-	Vector<uint8_t> data = FileAccess::get_file_as_array(p_path);
+	Vector<uint8_t> font_data = FileAccess::get_file_as_bytes(p_path);
+
+	// Load project locale list.
+	locale_tree->clear();
+	locale_root = locale_tree->create_item();
+	ERR_FAIL_NULL(locale_root);
+
+	Vector<String> translations = GLOBAL_GET("internationalization/locale/translations");
+	for (const String &E : translations) {
+		TreeItem *item = locale_tree->create_item(locale_root);
+		ERR_FAIL_NULL(item);
+		item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
+		item->set_text(0, E);
+	}
 
 	// Load font for preview.
-	Ref<FontData> dfont_prev;
-	dfont_prev.instantiate();
-	dfont_prev->set_data(data);
-
 	font_preview.instantiate();
-	font_preview->add_data(dfont_prev);
+	font_preview->set_data(font_data);
 
+	String font_name = vformat("%s (%s)", font_preview->get_font_name(), font_preview->get_font_style_name());
 	String sample;
 	static const String sample_base = U"12漢字ԱբΑαАбΑαאבابܐܒހށआআਆઆଆஆఆಆആආกิກິༀကႠა한글ሀᎣᐁᚁᚠᜀᜠᝀᝠកᠠᤁᥐAb😀";
 	for (int i = 0; i < sample_base.length(); i++) {
-		if (dfont_prev->has_char(sample_base[i])) {
+		if (font_preview->has_char(sample_base[i])) {
 			sample += sample_base[i];
 		}
 	}
 	if (sample.is_empty()) {
-		sample = dfont_prev->get_supported_chars().substr(0, 6);
+		sample = font_preview->get_supported_chars().substr(0, 6);
 	}
 	font_preview_label->set_text(sample);
 
-	// Load second copy of font with MSDF disabled for the glyph table and metadata extraction.
-	Ref<FontData> dfont_main;
-	dfont_main.instantiate();
-	dfont_main->set_data(data);
-	dfont_main->set_multichannel_signed_distance_field(false);
+	Ref<Font> bold_font = get_theme_font(SNAME("bold"), SNAME("EditorFonts"));
+	if (bold_font.is_valid() && bold_font.is_valid()) {
+		font_name_label->add_theme_font_override("bold_font", bold_font);
+	}
+	font_name_label->set_text(font_name);
 
+	// Load second copy of font with MSDF disabled for the glyph table and metadata extraction.
 	font_main.instantiate();
-	font_main->add_data(dfont_main);
+	font_main->set_data(font_data);
+	font_main->set_multichannel_signed_distance_field(false);
+
 	text_edit->add_theme_font_override("font", font_main);
 
 	base_path = p_path;
 
 	inspector_vars->edit(nullptr);
+	inspector_text->edit(nullptr);
 	inspector_general->edit(nullptr);
 
-	int gww = get_theme_font(SNAME("font"))->get_string_size("00000", get_theme_font_size(SNAME("font_size"))).x + 50;
-	glyph_table->set_column_custom_minimum_width(0, gww);
+	text_settings_data.instantiate();
+	ERR_FAIL_NULL(text_settings_data);
 
+	text_settings_data->owner = this;
+
+	for (List<ResourceImporter::ImportOption>::Element *F = options_text.front(); F; F = F->next()) {
+		text_settings_data->defaults[F->get().option.name] = F->get().default_value;
+	}
+
+	text_settings_data->fd = font_main;
+	text_settings_data->options = options_text;
+
+	inspector_text->edit(text_settings_data.ptr());
+
+	int gww = get_theme_font(SNAME("font"))->get_string_size("00000").x + 50;
+	glyph_table->set_column_custom_minimum_width(0, gww);
 	glyph_table->clear();
 	vars_list->clear();
-	lang_list->clear();
-	script_list->clear();
-	ot_list->clear();
 
-	selected_chars.clear();
-	selected_glyphs.clear();
-	text_edit->set_text(String());
+	glyph_tree->set_selected(glyph_root->get_child(0));
 
 	vars_list_root = vars_list->create_item();
-	lang_list_root = lang_list->create_item();
-	script_list_root = script_list->create_item();
-	ot_list_root = ot_list->create_item();
 
-	options_variations.clear();
-	Dictionary var_list = dfont_main->get_supported_variation_list();
-	for (int i = 0; i < var_list.size(); i++) {
-		int32_t tag = var_list.get_key_at_index(i);
-		Vector3i value = var_list.get_value_at_index(i);
-		options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::FLOAT, TS->tag_to_name(tag), PROPERTY_HINT_RANGE, itos(value.x) + "," + itos(value.y) + ",1"), value.z));
-	}
-	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "size", PROPERTY_HINT_RANGE, "0,127,1"), 16));
-	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "outline_size", PROPERTY_HINT_RANGE, "0,127,1"), 0));
-	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "extra_spacing_glyph"), 0));
-	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "extra_spacing_space"), 0));
-
+	import_settings_data->settings.clear();
 	import_settings_data->defaults.clear();
 	for (List<ResourceImporter::ImportOption>::Element *E = options_general.front(); E; E = E->next()) {
 		import_settings_data->defaults[E->get().option.name] = E->get().default_value;
@@ -1139,218 +1140,89 @@ void DynamicFontImportSettings::open_settings(const String &p_path) {
 		for (List<String>::Element *E = keys.front(); E; E = E->next()) {
 			String key = E->get();
 			print_verbose(String("    ") + key + " == " + String(config->get_value("params", key)));
-			if (key == "preload/char_ranges") {
-				Vector<String> ranges = config->get_value("params", key);
-				for (int i = 0; i < ranges.size(); i++) {
-					int32_t start, end;
-					Vector<String> tokens = ranges[i].split("-");
-					if (tokens.size() == 2) {
-						if (!ResourceImporterDynamicFont::_decode_range(tokens[0], start) || !ResourceImporterDynamicFont::_decode_range(tokens[1], end)) {
-							WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-							continue;
-						}
-					} else if (tokens.size() == 1) {
-						if (!ResourceImporterDynamicFont::_decode_range(tokens[0], start)) {
-							WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-							continue;
-						}
-						end = start;
-					} else {
-						WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-						continue;
-					}
-					for (int32_t j = start; j <= end; j++) {
-						selected_chars.insert(j);
-					}
-				}
-			} else if (key == "preload/glyph_ranges") {
-				Vector<String> ranges = config->get_value("params", key);
-				for (int i = 0; i < ranges.size(); i++) {
-					int32_t start, end;
-					Vector<String> tokens = ranges[i].split("-");
-					if (tokens.size() == 2) {
-						if (!ResourceImporterDynamicFont::_decode_range(tokens[0], start) || !ResourceImporterDynamicFont::_decode_range(tokens[1], end)) {
-							WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-							continue;
-						}
-					} else if (tokens.size() == 1) {
-						if (!ResourceImporterDynamicFont::_decode_range(tokens[0], start)) {
-							WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-							continue;
-						}
-						end = start;
-					} else {
-						WARN_PRINT("Invalid range: \"" + ranges[i] + "\"");
-						continue;
-					}
-					for (int32_t j = start; j <= end; j++) {
-						selected_glyphs.insert(j);
-					}
-				}
-			} else if (key == "preload/configurations") {
-				Vector<String> variations = config->get_value("params", key);
-				for (int i = 0; i < variations.size(); i++) {
+			if (key == "preload") {
+				Array preload_configurations = config->get_value("params", key);
+				for (int i = 0; i < preload_configurations.size(); i++) {
+					Dictionary preload_config = preload_configurations[i];
+
+					Dictionary variation = preload_config.has("variation_opentype") ? preload_config["variation_opentype"].operator Dictionary() : Dictionary();
+					double embolden = preload_config.has("variation_embolden") ? preload_config["variation_embolden"].operator double() : 0;
+					int face_index = preload_config.has("variation_face_index") ? preload_config["variation_face_index"].operator int() : 0;
+					Transform2D transform = preload_config.has("variation_transform") ? preload_config["variation_transform"].operator Transform2D() : Transform2D();
+					Vector2i font_size = preload_config.has("size") ? preload_config["size"].operator Vector2i() : Vector2i(16, 0);
+					String cfg_name = preload_config.has("name") ? preload_config["name"].operator String() : vformat("Configuration %d", i);
+
 					TreeItem *vars_item = vars_list->create_item(vars_list_root);
 					ERR_FAIL_NULL(vars_item);
 
-					vars_item->set_text(0, TTR("Configuration") + " " + itos(i));
+					vars_item->set_text(0, cfg_name);
 					vars_item->set_editable(0, true);
-					vars_item->add_button(1, vars_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove Variation"));
+					vars_item->add_button(1, get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove Variation"));
 					vars_item->set_button_color(1, 0, Color(1, 1, 1, 0.75));
 
 					Ref<DynamicFontImportSettingsData> import_variation_data_custom;
 					import_variation_data_custom.instantiate();
-					import_variation_data_custom->owner = this;
 					ERR_FAIL_NULL(import_variation_data_custom);
 
+					import_variation_data_custom->owner = this;
 					for (List<ResourceImporter::ImportOption>::Element *F = options_variations.front(); F; F = F->next()) {
 						import_variation_data_custom->defaults[F->get().option.name] = F->get().default_value;
 					}
 
+					import_variation_data_custom->fd = font_main;
+
 					import_variation_data_custom->options = options_variations;
-
 					vars_item->set_metadata(0, import_variation_data_custom);
-					Vector<String> variation_tags = variations[i].split(",");
-					for (int j = 0; j < variation_tags.size(); j++) {
-						Vector<String> tokens = variation_tags[j].split("=");
-						if (tokens[0] == "name") {
-							vars_item->set_text(0, tokens[1]);
-						} else if (tokens[0] == "size" || tokens[0] == "outline_size" || tokens[0] == "extra_spacing_space" || tokens[0] == "extra_spacing_glyph") {
-							import_variation_data_custom->set(tokens[0], tokens[1].to_int());
-						} else {
-							import_variation_data_custom->set(tokens[0], tokens[1].to_float());
-						}
+
+					import_variation_data_custom->set("size", font_size.x);
+					import_variation_data_custom->set("outline_size", font_size.y);
+					import_variation_data_custom->set("variation_opentype", variation);
+					import_variation_data_custom->set("variation_embolden", embolden);
+					import_variation_data_custom->set("variation_face_index", face_index);
+					import_variation_data_custom->set("variation_transform", transform);
+
+					Array chars = preload_config["chars"];
+					for (int j = 0; j < chars.size(); j++) {
+						char32_t c = chars[j].operator int();
+						import_variation_data_custom->selected_chars.insert(c);
+					}
+
+					Array glyphs = preload_config["glyphs"];
+					for (int j = 0; j < glyphs.size(); j++) {
+						int32_t c = glyphs[j];
+						import_variation_data_custom->selected_glyphs.insert(c);
 					}
 				}
-			} else if (key == "support_overrides/language_enabled") {
-				PackedStringArray _langs = config->get_value("params", key);
-				for (int i = 0; i < _langs.size(); i++) {
-					TreeItem *lang_item = lang_list->create_item(lang_list_root);
-					ERR_FAIL_NULL(lang_item);
-
-					lang_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-					lang_item->set_editable(0, true);
-					lang_item->set_checked(0, true);
-					lang_item->set_text(1, _langs[i]);
-					lang_item->set_editable(1, true);
-					lang_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
+				if (preload_configurations.is_empty()) {
+					_variation_add(); // Add default variation.
 				}
-			} else if (key == "support_overrides/language_disabled") {
-				PackedStringArray _langs = config->get_value("params", key);
-				for (int i = 0; i < _langs.size(); i++) {
-					TreeItem *lang_item = lang_list->create_item(lang_list_root);
-					ERR_FAIL_NULL(lang_item);
-
-					lang_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-					lang_item->set_editable(0, true);
-					lang_item->set_checked(0, false);
-					lang_item->set_text(1, _langs[i]);
-					lang_item->set_editable(1, true);
-					lang_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-				}
-			} else if (key == "support_overrides/script_enabled") {
-				PackedStringArray _scripts = config->get_value("params", key);
-				for (int i = 0; i < _scripts.size(); i++) {
-					TreeItem *script_item = script_list->create_item(script_list_root);
-					ERR_FAIL_NULL(script_item);
-
-					script_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-					script_item->set_editable(0, true);
-					script_item->set_checked(0, true);
-					script_item->set_text(1, _scripts[i]);
-					script_item->set_editable(1, true);
-					script_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-				}
-			} else if (key == "support_overrides/script_disabled") {
-				PackedStringArray _scripts = config->get_value("params", key);
-				for (int i = 0; i < _scripts.size(); i++) {
-					TreeItem *script_item = script_list->create_item(script_list_root);
-					ERR_FAIL_NULL(script_item);
-
-					script_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
-					script_item->set_editable(0, true);
-					script_item->set_checked(0, false);
-					script_item->set_text(1, _scripts[i]);
-					script_item->set_editable(1, true);
-					script_item->add_button(2, lang_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-				}
-			} else if (key == "opentype_feature_overrides") {
-				Dictionary features = config->get_value("params", key);
-				for (const Variant *ftr = features.next(nullptr); ftr != nullptr; ftr = features.next(ftr)) {
-					TreeItem *ot_item = ot_list->create_item(ot_list_root);
-					ERR_FAIL_NULL(ot_item);
-					int32_t value = features[*ftr];
-					if (ftr->get_type() == Variant::STRING) {
-						ot_item->set_text(0, *ftr);
-					} else {
-						ot_item->set_text(0, TS->tag_to_name(*ftr));
-					}
-					ot_item->set_editable(0, false);
-					ot_item->set_text(1, itos(value));
-					ot_item->set_editable(1, true);
-					ot_item->add_button(2, ot_list->get_theme_icon(SNAME("Remove"), SNAME("EditorIcons")), BUTTON_REMOVE_VAR, false, TTR("Remove"));
-					ot_item->set_button_color(2, 0, Color(1, 1, 1, 0.75));
-				}
+				vars_list->set_selected(vars_list_root->get_child(0));
 			} else {
 				Variant value = config->get_value("params", key);
 				import_settings_data->defaults[key] = value;
 			}
 		}
 	}
-	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(selected_glyphs.size()));
 
+	import_settings_data->fd = font_main;
 	import_settings_data->options = options_general;
 	inspector_general->edit(import_settings_data.ptr());
 	import_settings_data->notify_property_list_changed();
 
-	if (font_preview->get_data_count() > 0) {
-		font_preview->get_data(0)->set_face_index(import_settings_data->get("face_index"));
-		font_preview->get_data(0)->set_antialiased(import_settings_data->get("antialiased"));
-		font_preview->get_data(0)->set_multichannel_signed_distance_field(import_settings_data->get("multichannel_signed_distance_field"));
-		font_preview->get_data(0)->set_msdf_pixel_range(import_settings_data->get("msdf_pixel_range"));
-		font_preview->get_data(0)->set_msdf_size(import_settings_data->get("msdf_size"));
-		font_preview->get_data(0)->set_force_autohinter(import_settings_data->get("force_autohinter"));
-		font_preview->get_data(0)->set_hinting((TextServer::Hinting)import_settings_data->get("hinting").operator int());
-		font_preview->get_data(0)->set_subpixel_positioning((TextServer::SubpixelPositioning)import_settings_data->get("subpixel_positioning").operator int());
-		font_preview->get_data(0)->set_embolden(import_settings_data->get("embolden"));
-		font_preview->get_data(0)->set_transform(import_settings_data->get("transform"));
-		font_preview->get_data(0)->set_oversampling(import_settings_data->get("oversampling"));
+	if (font_preview.is_valid()) {
+		font_preview->set_antialiasing((TextServer::FontAntialiasing)import_settings_data->get("antialiasing").operator int());
+		font_preview->set_multichannel_signed_distance_field(import_settings_data->get("multichannel_signed_distance_field"));
+		font_preview->set_msdf_pixel_range(import_settings_data->get("msdf_pixel_range"));
+		font_preview->set_msdf_size(import_settings_data->get("msdf_size"));
+		font_preview->set_allow_system_fallback(import_settings_data->get("allow_system_fallback"));
+		font_preview->set_force_autohinter(import_settings_data->get("force_autohinter"));
+		font_preview->set_hinting((TextServer::Hinting)import_settings_data->get("hinting").operator int());
+		font_preview->set_subpixel_positioning((TextServer::SubpixelPositioning)import_settings_data->get("subpixel_positioning").operator int());
+		font_preview->set_oversampling(import_settings_data->get("oversampling"));
 	}
 	font_preview_label->add_theme_font_override("font", font_preview);
-	font_preview_label->update();
-
-	menu_ot->clear();
-	menu_ot_ss->clear();
-	menu_ot_cv->clear();
-	menu_ot_cu->clear();
-	bool have_ss = false;
-	bool have_cv = false;
-	bool have_cu = false;
-	Dictionary features = font_preview->get_feature_list();
-	for (const Variant *ftr = features.next(nullptr); ftr != nullptr; ftr = features.next(ftr)) {
-		String ftr_name = TS->tag_to_name(*ftr);
-		if (ftr_name.begins_with("stylistic_set_")) {
-			menu_ot_ss->add_item(ftr_name.capitalize(), (int32_t)*ftr);
-			have_ss = true;
-		} else if (ftr_name.begins_with("character_variant_")) {
-			menu_ot_cv->add_item(ftr_name.capitalize(), (int32_t)*ftr);
-			have_cv = true;
-		} else if (ftr_name.begins_with("custom_")) {
-			menu_ot_cu->add_item(ftr_name.replace("custom_", ""), (int32_t)*ftr);
-			have_cu = true;
-		} else {
-			menu_ot->add_item(ftr_name.capitalize(), (int32_t)*ftr);
-		}
-	}
-	if (have_ss) {
-		menu_ot->add_submenu_item(RTR("Stylistic Sets"), "SSMenu");
-	}
-	if (have_cv) {
-		menu_ot->add_submenu_item(RTR("Character Variants"), "CVMenu");
-	}
-	if (have_cu) {
-		menu_ot->add_submenu_item(RTR("Custom"), "CUMenu");
-	}
+	font_preview_label->add_theme_font_size_override("font_size", 200 * EDSCALE);
+	font_preview_label->queue_redraw();
 
 	_variations_validate();
 
@@ -1366,53 +1238,40 @@ DynamicFontImportSettings *DynamicFontImportSettings::get_singleton() {
 DynamicFontImportSettings::DynamicFontImportSettings() {
 	singleton = this;
 
-	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "face_index"), 0));
-	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "antialiased"), true));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Rendering", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
+
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "antialiasing", PROPERTY_HINT_ENUM, "None,Grayscale,LCD Subpixel"), 1));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "generate_mipmaps"), false));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "multichannel_signed_distance_field", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), true));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "msdf_pixel_range", PROPERTY_HINT_RANGE, "1,100,1"), 8));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "msdf_size", PROPERTY_HINT_RANGE, "1,250,1"), 48));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "allow_system_fallback"), true));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "force_autohinter"), false));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "hinting", PROPERTY_HINT_ENUM, "None,Light,Normal"), 1));
-	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "subpixel_positioning", PROPERTY_HINT_ENUM, "Disabled,Auto,One half of a pixel,One quarter of a pixel"), 1));
-	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::FLOAT, "embolden", PROPERTY_HINT_RANGE, "-2,2,0.01"), 0.f));
-	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::TRANSFORM2D, "transform"), Transform2D()));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "subpixel_positioning", PROPERTY_HINT_ENUM, "Disabled,Auto,One Half of a Pixel,One Quarter of a Pixel"), 1));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::FLOAT, "oversampling", PROPERTY_HINT_RANGE, "0,10,0.1"), 0.0));
+
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Metadata Overrides", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::DICTIONARY, "language_support"), Dictionary()));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::DICTIONARY, "script_support"), Dictionary()));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::DICTIONARY, "opentype_features"), Dictionary()));
+
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Fallbacks", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::ARRAY, "fallbacks", PROPERTY_HINT_ARRAY_TYPE, MAKE_RESOURCE_TYPE_HINT("Font")), Array()));
+
+	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Compress", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
 	options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "compress", PROPERTY_HINT_NONE, ""), false));
 
-	// Popup menus
+	options_text.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::DICTIONARY, "opentype_features"), Dictionary()));
+	options_text.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::STRING, "language", PROPERTY_HINT_LOCALE_ID, ""), ""));
 
-	locale_select = memnew(EditorLocaleDialog);
-	locale_select->connect("locale_selected", callable_mp(this, &DynamicFontImportSettings::_lang_add_item));
-	add_child(locale_select);
-
-	menu_scripts = memnew(PopupMenu);
-	menu_scripts->set_name("Script");
-	script_codes = TranslationServer::get_singleton()->get_all_scripts();
-	for (int i = 0; i < script_codes.size(); i++) {
-		menu_scripts->add_item(TranslationServer::get_singleton()->get_script_name(script_codes[i]) + " (" + script_codes[i] + ")", i);
-	}
-	add_child(menu_scripts);
-	menu_scripts->connect("id_pressed", callable_mp(this, &DynamicFontImportSettings::_script_add_item));
-
-	menu_ot = memnew(PopupMenu);
-	add_child(menu_ot);
-	menu_ot->connect("id_pressed", callable_mp(this, &DynamicFontImportSettings::_ot_add_item));
-
-	menu_ot_cv = memnew(PopupMenu);
-	menu_ot_cv->set_name("CVMenu");
-	menu_ot->add_child(menu_ot_cv);
-	menu_ot_cv->connect("id_pressed", callable_mp(this, &DynamicFontImportSettings::_ot_add_item));
-
-	menu_ot_ss = memnew(PopupMenu);
-	menu_ot_ss->set_name("SSMenu");
-	menu_ot->add_child(menu_ot_ss);
-	menu_ot_ss->connect("id_pressed", callable_mp(this, &DynamicFontImportSettings::_ot_add_item));
-
-	menu_ot_cu = memnew(PopupMenu);
-	menu_ot_cu->set_name("CUMenu");
-	menu_ot->add_child(menu_ot_cu);
-	menu_ot_cu->connect("id_pressed", callable_mp(this, &DynamicFontImportSettings::_ot_add_item));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "size", PROPERTY_HINT_RANGE, "0,127,1"), 16));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "outline_size", PROPERTY_HINT_RANGE, "0,127,1"), 0));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Variation", PROPERTY_HINT_NONE, "variation", PROPERTY_USAGE_GROUP), Variant()));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::DICTIONARY, "variation_opentype"), Dictionary()));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::FLOAT, "variation_embolden", PROPERTY_HINT_RANGE, "-2,2,0.01"), 0));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::INT, "variation_face_index"), 0));
+	options_variations.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::TRANSFORM2D, "variation_transform"), Transform2D()));
 
 	Color warn_color = (EditorNode::get_singleton()) ? EditorNode::get_singleton()->get_gui_base()->get_theme_color(SNAME("warning_color"), SNAME("Editor")) : Color(1, 1, 0);
 
@@ -1442,7 +1301,7 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 	main_pages->add_child(page1_vb);
 
 	page1_description = memnew(Label);
-	page1_description->set_text(TTR("Select font rendering options:"));
+	page1_description->set_text(TTR("Select font rendering options, fallback font, and metadata override:"));
 	page1_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	page1_vb->add_child(page1_description);
 
@@ -1451,15 +1310,25 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 	page1_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	page1_vb->add_child(page1_hb);
 
+	VBoxContainer *page1_lbl_vb = memnew(VBoxContainer);
+	page1_lbl_vb->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	page1_lbl_vb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page1_hb->add_child(page1_lbl_vb);
+
+	font_name_label = memnew(Label);
+	font_name_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	font_name_label->set_clip_text(true);
+	font_name_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page1_lbl_vb->add_child(font_name_label);
+
 	font_preview_label = memnew(Label);
-	font_preview_label->add_theme_font_size_override("font_size", 200 * EDSCALE);
 	font_preview_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	font_preview_label->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 	font_preview_label->set_autowrap_mode(TextServer::AUTOWRAP_ARBITRARY);
 	font_preview_label->set_clip_text(true);
 	font_preview_label->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	font_preview_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	page1_hb->add_child(font_preview_label);
+	page1_lbl_vb->add_child(font_preview_label);
 
 	inspector_general = memnew(EditorInspector);
 	inspector_general->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -1469,11 +1338,11 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 
 	// Page 2 layout: Configurations
 	VBoxContainer *page2_vb = memnew(VBoxContainer);
-	page2_vb->set_name(TTR("Sizes and Variations"));
+	page2_vb->set_name(TTR("Pre-render Configurations"));
 	main_pages->add_child(page2_vb);
 
 	page2_description = memnew(Label);
-	page2_description->set_text(TTR("Add font size, variation coordinates, and extra spacing combinations to pre-render:"));
+	page2_description->set_text(TTR("Add font size, and variation coordinates, and select glyphs to pre-render:"));
 	page2_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	page2_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 	page2_vb->add_child(page2_description);
@@ -1497,8 +1366,8 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 
 	add_var = memnew(Button);
 	page2_hb_vars->add_child(add_var);
-	add_var->set_tooltip(TTR("Add configuration"));
-	add_var->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
+	add_var->set_tooltip_text(TTR("Add configuration"));
+	add_var->set_icon(get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
 	add_var->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_variation_add));
 
 	vars_list = memnew(Tree);
@@ -1517,80 +1386,112 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 	inspector_vars = memnew(EditorInspector);
 	inspector_vars->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	inspector_vars->connect("property_edited", callable_mp(this, &DynamicFontImportSettings::_variation_changed));
-	page2_hb->add_child(inspector_vars);
+	page2_side_vb->add_child(inspector_vars);
 
-	// Page 3 layout: Text to select glyphs
-	VBoxContainer *page3_vb = memnew(VBoxContainer);
-	page3_vb->set_name(TTR("Glyphs from the Text"));
-	main_pages->add_child(page3_vb);
+	VBoxContainer *preload_pages_vb = memnew(VBoxContainer);
+	page2_hb->add_child(preload_pages_vb);
 
-	page3_description = memnew(Label);
-	page3_description->set_text(TTR("Enter a text to shape and add all required glyphs to pre-render list:"));
-	page3_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	page3_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	page3_vb->add_child(page3_description);
+	preload_pages = memnew(TabContainer);
+	preload_pages->set_tab_alignment(TabBar::ALIGNMENT_CENTER);
+	preload_pages->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	preload_pages->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	preload_pages_vb->add_child(preload_pages);
 
-	HBoxContainer *ot_hb = memnew(HBoxContainer);
-	page3_vb->add_child(ot_hb);
-	ot_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	HBoxContainer *gl_hb = memnew(HBoxContainer);
+	preload_pages_vb->add_child(gl_hb);
+	gl_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
-	Label *label_ed_ftr = memnew(Label);
-	ot_hb->add_child(label_ed_ftr);
-	label_ed_ftr->set_text(TTR("OpenType features:"));
+	label_glyphs = memnew(Label);
+	gl_hb->add_child(label_glyphs);
+	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(0));
+	label_glyphs->set_custom_minimum_size(Size2(50 * EDSCALE, 0));
 
-	ftr_edit = memnew(LineEdit);
-	ot_hb->add_child(ftr_edit);
-	ftr_edit->connect("text_changed", callable_mp(this, &DynamicFontImportSettings::_change_text_opts));
-	ftr_edit->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	Button *btn_clear = memnew(Button);
+	gl_hb->add_child(btn_clear);
+	btn_clear->set_text(TTR("Clear Glyph List"));
+	btn_clear->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_glyph_clear));
 
-	Label *label_ed_lang = memnew(Label);
-	ot_hb->add_child(label_ed_lang);
-	label_ed_lang->set_text(TTR("Text language:"));
+	VBoxContainer *page2_0_vb = memnew(VBoxContainer);
+	page2_0_vb->set_name(TTR("Glyphs from the Translations"));
+	preload_pages->add_child(page2_0_vb);
 
-	lang_edit = memnew(LineEdit);
-	ot_hb->add_child(lang_edit);
-	lang_edit->connect("text_changed", callable_mp(this, &DynamicFontImportSettings::_change_text_opts));
-	lang_edit->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page2_0_description = memnew(Label);
+	page2_0_description->set_text(TTR("Select translations to add all required glyphs to pre-render list:"));
+	page2_0_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page2_0_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	page2_0_vb->add_child(page2_0_description);
+
+	locale_tree = memnew(Tree);
+	page2_0_vb->add_child(locale_tree);
+	locale_tree->set_columns(1);
+	locale_tree->set_hide_root(true);
+	locale_tree->set_column_expand(0, true);
+	locale_tree->connect("item_activated", callable_mp(this, &DynamicFontImportSettings::_locale_edited));
+	locale_tree->set_column_custom_minimum_width(0, 120 * EDSCALE);
+	locale_tree->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	locale_root = locale_tree->create_item();
+
+	HBoxContainer *locale_hb = memnew(HBoxContainer);
+	page2_0_vb->add_child(locale_hb);
+	locale_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+
+	btn_fill_locales = memnew(Button);
+	locale_hb->add_child(btn_fill_locales);
+	btn_fill_locales->set_text(TTR("Shape all Strings in the Translations and Add Glyphs"));
+	btn_fill_locales->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_process_locales));
+
+	// Page 2.1 layout: Text to select glyphs
+	VBoxContainer *page2_1_vb = memnew(VBoxContainer);
+	page2_1_vb->set_name(TTR("Glyphs from the Text"));
+	preload_pages->add_child(page2_1_vb);
+
+	page2_1_description = memnew(Label);
+	page2_1_description->set_text(TTR("Enter a text and select OpenType features to shape and add all required glyphs to pre-render list:"));
+	page2_1_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page2_1_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	page2_1_vb->add_child(page2_1_description);
+
+	HSplitContainer *page2_1_hb = memnew(HSplitContainer);
+	page2_1_vb->add_child(page2_1_hb);
+	page2_1_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page2_1_hb->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+
+	inspector_text = memnew(EditorInspector);
+
+	inspector_text->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	inspector_text->set_custom_minimum_size(Size2(300 * EDSCALE, 250 * EDSCALE));
+	inspector_text->connect("property_edited", callable_mp(this, &DynamicFontImportSettings::_change_text_opts));
+	page2_1_hb->add_child(inspector_text);
 
 	text_edit = memnew(TextEdit);
-	page3_vb->add_child(text_edit);
+	page2_1_hb->add_child(text_edit);
 	text_edit->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	text_edit->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
 	HBoxContainer *text_hb = memnew(HBoxContainer);
-	page3_vb->add_child(text_hb);
+	page2_1_vb->add_child(text_hb);
 	text_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
-	label_glyphs = memnew(Label);
-	text_hb->add_child(label_glyphs);
-	label_glyphs->set_text(TTR("Preloaded glyphs:") + " " + itos(0));
-	label_glyphs->set_custom_minimum_size(Size2(50 * EDSCALE, 0));
-
-	Button *btn_fill = memnew(Button);
+	btn_fill = memnew(Button);
 	text_hb->add_child(btn_fill);
-	btn_fill->set_text(TTR("Shape text and add glyphs"));
+	btn_fill->set_text(TTR("Shape Text and Add Glyphs"));
 	btn_fill->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_glyph_text_selected));
 
-	Button *btn_clear = memnew(Button);
-	text_hb->add_child(btn_clear);
-	btn_clear->set_text(TTR("Clear glyph list"));
-	btn_clear->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_glyph_clear));
+	// Page 2.2 layout: Character map
+	VBoxContainer *page2_2_vb = memnew(VBoxContainer);
+	page2_2_vb->set_name(TTR("Glyphs from the Character Map"));
+	preload_pages->add_child(page2_2_vb);
 
-	// Page 4 layout: Character map
-	VBoxContainer *page4_vb = memnew(VBoxContainer);
-	page4_vb->set_name(TTR("Glyphs from the Character Map"));
-	main_pages->add_child(page4_vb);
-
-	page4_description = memnew(Label);
-	page4_description->set_text(TTR("Add or remove additional glyphs from the character map to pre-render list:\nNote: Some stylistic alternatives and glyph variants do not have one-to-one correspondence to character, and not shown in this map, use \"Glyphs from the text\" to add these."));
-	page4_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	page4_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	page4_vb->add_child(page4_description);
+	page2_2_description = memnew(Label);
+	page2_2_description->set_text(TTR("Add or remove glyphs from the character map to pre-render list:\nNote: Some stylistic alternatives and glyph variants do not have one-to-one correspondence to character, and not shown in this map, use \"Glyphs from the text\" tab to add these."));
+	page2_2_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	page2_2_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	page2_2_vb->add_child(page2_2_description);
 
 	HSplitContainer *glyphs_split = memnew(HSplitContainer);
 	glyphs_split->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	glyphs_split->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	page4_vb->add_child(glyphs_split);
+	page2_2_vb->add_child(glyphs_split);
 
 	glyph_table = memnew(Tree);
 	glyphs_split->add_child(glyph_table);
@@ -1605,8 +1506,8 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 	for (int i = 0; i < 16; i++) {
 		glyph_table->set_column_title(i + 1, String::num_int64(i, 16));
 	}
-	glyph_table->add_theme_style_override("selected", glyph_table->get_theme_stylebox(SNAME("bg")));
-	glyph_table->add_theme_style_override("selected_focus", glyph_table->get_theme_stylebox(SNAME("bg")));
+	glyph_table->add_theme_style_override("selected", glyph_table->get_theme_stylebox(SNAME("panel")));
+	glyph_table->add_theme_style_override("selected_focus", glyph_table->get_theme_stylebox(SNAME("panel")));
 	glyph_table->add_theme_constant_override("h_separation", 0);
 	glyph_table->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	glyph_table->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -1627,106 +1528,11 @@ DynamicFontImportSettings::DynamicFontImportSettings() {
 		_add_glyph_range_item(unicode_ranges[i].start, unicode_ranges[i].end, unicode_ranges[i].name);
 	}
 
-	// Page 4 layout: Metadata override
-	VBoxContainer *page5_vb = memnew(VBoxContainer);
-	page5_vb->set_name(TTR("Metadata Override"));
-	main_pages->add_child(page5_vb);
-
-	page5_description = memnew(Label);
-	page5_description->set_text(TTR("Add or remove language and script support overrides, to control fallback font selection order:"));
-	page5_description->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	page5_description->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	page5_vb->add_child(page5_description);
-
-	HBoxContainer *hb_lang = memnew(HBoxContainer);
-	page5_vb->add_child(hb_lang);
-
-	label_langs = memnew(Label);
-	label_langs->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	label_langs->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	label_langs->set_text(TTR("Language support overrides"));
-	hb_lang->add_child(label_langs);
-
-	add_lang = memnew(Button);
-	hb_lang->add_child(add_lang);
-	add_lang->set_tooltip(TTR("Add language override"));
-	add_lang->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-	add_lang->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_lang_add));
-
-	lang_list = memnew(Tree);
-	page5_vb->add_child(lang_list);
-	lang_list->set_hide_root(true);
-	lang_list->set_columns(3);
-	lang_list->set_column_expand(0, false); // Check
-	lang_list->set_column_custom_minimum_width(0, 50 * EDSCALE);
-	lang_list->set_column_expand(1, true);
-	lang_list->set_column_custom_minimum_width(1, 80 * EDSCALE);
-	lang_list->set_column_expand(2, false);
-	lang_list->set_column_custom_minimum_width(2, 50 * EDSCALE);
-	lang_list->connect("button_clicked", callable_mp(this, &DynamicFontImportSettings::_lang_remove));
-	lang_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-
-	HBoxContainer *hb_script = memnew(HBoxContainer);
-	page5_vb->add_child(hb_script);
-
-	label_script = memnew(Label);
-	label_script->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	label_script->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	label_script->set_text(TTR("Script support overrides"));
-	hb_script->add_child(label_script);
-
-	add_script = memnew(Button);
-	hb_script->add_child(add_script);
-	add_script->set_tooltip(TTR("Add script override"));
-	add_script->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-	add_script->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_script_add));
-
-	script_list = memnew(Tree);
-	page5_vb->add_child(script_list);
-	script_list->set_hide_root(true);
-	script_list->set_columns(3);
-	script_list->set_column_expand(0, false);
-	script_list->set_column_custom_minimum_width(0, 50 * EDSCALE);
-	script_list->set_column_expand(1, true);
-	script_list->set_column_custom_minimum_width(1, 80 * EDSCALE);
-	script_list->set_column_expand(2, false);
-	script_list->set_column_custom_minimum_width(2, 50 * EDSCALE);
-	script_list->connect("button_clicked", callable_mp(this, &DynamicFontImportSettings::_script_remove));
-	script_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-
-	HBoxContainer *hb_ot = memnew(HBoxContainer);
-	page5_vb->add_child(hb_ot);
-
-	label_ot = memnew(Label);
-	label_ot->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	label_ot->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	label_ot->set_text(TTR("OpenType feature overrides"));
-	hb_ot->add_child(label_ot);
-
-	add_ot = memnew(Button);
-	hb_ot->add_child(add_ot);
-	add_ot->set_tooltip(TTR("Add feature override"));
-	add_ot->set_icon(add_var->get_theme_icon(SNAME("Add"), SNAME("EditorIcons")));
-	add_ot->connect("pressed", callable_mp(this, &DynamicFontImportSettings::_ot_add));
-
-	ot_list = memnew(Tree);
-	page5_vb->add_child(ot_list);
-	ot_list->set_hide_root(true);
-	ot_list->set_columns(3);
-	ot_list->set_column_expand(0, true);
-	ot_list->set_column_custom_minimum_width(0, 80 * EDSCALE);
-	ot_list->set_column_expand(1, true);
-	ot_list->set_column_custom_minimum_width(1, 80 * EDSCALE);
-	ot_list->set_column_expand(2, false);
-	ot_list->set_column_custom_minimum_width(2, 50 * EDSCALE);
-	ot_list->connect("button_clicked", callable_mp(this, &DynamicFontImportSettings::_ot_remove));
-	ot_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-
 	// Common
 
 	import_settings_data.instantiate();
 	import_settings_data->owner = this;
 
-	get_ok_button()->set_text(TTR("Reimport"));
-	get_cancel_button()->set_text(TTR("Close"));
+	set_ok_button_text(TTR("Reimport"));
+	set_cancel_button_text(TTR("Close"));
 }

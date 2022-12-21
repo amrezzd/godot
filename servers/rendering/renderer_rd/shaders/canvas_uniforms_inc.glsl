@@ -25,6 +25,7 @@
 #define FLAGS_DEFAULT_SPECULAR_MAP_USED (1 << 27)
 
 #define FLAGS_USE_MSDF (1 << 28)
+#define FLAGS_USE_LCD (1 << 29)
 
 #define SAMPLER_NEAREST_CLAMP 0
 #define SAMPLER_LINEAR_CLAMP 1
@@ -138,10 +139,10 @@ layout(set = 0, binding = 7) uniform texture2D sdf_texture;
 
 layout(set = 0, binding = 8) uniform sampler material_samplers[12];
 
-layout(set = 0, binding = 9, std430) restrict readonly buffer GlobalVariableData {
+layout(set = 0, binding = 9, std430) restrict readonly buffer GlobalShaderUniformData {
 	vec4 data[];
 }
-global_variables;
+global_shader_uniforms;
 
 /* SET1: Is reserved for the material */
 

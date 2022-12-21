@@ -110,6 +110,7 @@ class EditorHelp : public VBoxContainer {
 	HashMap<String, int> property_line;
 	HashMap<String, int> theme_property_line;
 	HashMap<String, int> constant_line;
+	HashMap<String, int> annotation_line;
 	HashMap<String, int> enum_line;
 	HashMap<String, HashMap<String, int>> enum_values_line;
 	int description_line = 0;
@@ -140,6 +141,8 @@ class EditorHelp : public VBoxContainer {
 	Ref<Font> doc_title_font;
 	Ref<Font> doc_code_font;
 
+	int doc_title_font_size;
+
 	int scroll_to = -1;
 
 	void _update_theme();
@@ -150,6 +153,7 @@ class EditorHelp : public VBoxContainer {
 
 	//void _button_pressed(int p_idx);
 	void _add_type(const String &p_type, const String &p_enum = String());
+	void _add_type_icon(const String &p_type, int p_size = 0);
 	void _add_method(const DocData::MethodDoc &p_method, bool p_overview = true);
 
 	void _add_bulletpoint();
@@ -163,7 +167,7 @@ class EditorHelp : public VBoxContainer {
 
 	Error _goto_desc(const String &p_class, int p_vscr = -1);
 	//void _update_history_buttons();
-	void _update_method_list(const Vector<DocData::MethodDoc> p_methods, bool &r_method_descrpitons);
+	void _update_method_list(const Vector<DocData::MethodDoc> p_methods);
 	void _update_method_descriptions(const DocData::ClassDoc p_classdoc, const Vector<DocData::MethodDoc> p_methods, const String &p_method_type);
 	void _update_doc();
 

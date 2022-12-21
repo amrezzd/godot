@@ -28,18 +28,18 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef API_DUMP_H
-#define API_DUMP_H
+#ifndef EXTENSION_API_DUMP_H
+#define EXTENSION_API_DUMP_H
 
-#include "core/extension/native_extension.h"
+#include "core/extension/gdextension.h"
 
 #ifdef TOOLS_ENABLED
 
-class NativeExtensionAPIDump {
+class GDExtensionAPIDump {
 public:
 	static Dictionary generate_extension_api();
 	static void generate_extension_json_file(const String &p_path);
 };
 #endif
 
-#endif // API_DUMP_H
+#endif // EXTENSION_API_DUMP_H

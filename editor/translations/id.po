@@ -26,7 +26,7 @@
 # Ade Fikri Malihuddin <ade.fm97@gmail.com>, 2020.
 # zephyroths <ridho.hikaru@gmail.com>, 2020, 2021, 2022.
 # Richard Urban <redasuio1@gmail.com>, 2020.
-# yusuf afandi <afandi.yusuf.04@gmail.com>, 2020.
+# yusuf afandi <afandi.yusuf.04@gmail.com>, 2020, 2022.
 # Habib Rohman <revolusi147id@gmail.com>, 2020.
 # Hanz <hanzhaxors@gmail.com>, 2021.
 # Reza Almanda <rezaalmanda27@gmail.com>, 2021, 2022.
@@ -39,13 +39,15 @@
 # ProgrammerIndonesia 44 <elo.jhy@gmail.com>, 2022.
 # Rizky Ramadhan <rizkyterm@gmail.com>, 2022.
 # Primananda Kurnia <primakurnia71@gmail.com>, 2022.
+# FellowMustard <rachmawanng33@gmail.com>, 2022.
+# Muhammad Zainal Abidin <eviepk12@gmail.com>, 2022.
 msgid ""
 msgstr ""
 "Project-Id-Version: Godot Engine editor\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
-"PO-Revision-Date: 2022-05-15 09:38+0000\n"
-"Last-Translator: Tsaqib Fadhlurrahman Soka <sokatsaqib@gmail.com>\n"
+"PO-Revision-Date: 2022-09-27 21:37+0000\n"
+"Last-Translator: Muhammad Zainal Abidin <eviepk12@gmail.com>\n"
 "Language-Team: Indonesian <https://hosted.weblate.org/projects/godot-engine/"
 "godot/id/>\n"
 "Language: id\n"
@@ -53,7 +55,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.13-dev\n"
+"X-Generator: Weblate 4.14.1\n"
 
 #: core/bind/core_bind.cpp main/main.cpp
 msgid "Tablet Driver"
@@ -425,6 +427,10 @@ msgstr "Meta"
 msgid "Command"
 msgstr "Perintah"
 
+#: core/os/input_event.cpp
+msgid "Physical"
+msgstr "(Secara fisik)"
+
 #: core/os/input_event.cpp scene/2d/touch_screen_button.cpp
 #: scene/gui/base_button.cpp scene/gui/texture_button.cpp
 #: scene/resources/default_theme/default_theme.cpp
@@ -474,6 +480,11 @@ msgstr "Miring"
 #: core/os/input_event.cpp
 msgid "Pressure"
 msgstr "Tekanan"
+
+#: core/os/input_event.cpp
+#, fuzzy
+msgid "Pen Inverted"
+msgstr "Balik"
 
 #: core/os/input_event.cpp
 msgid "Relative"
@@ -666,6 +677,10 @@ msgid "Main Run Args"
 msgstr "Jalan Utama Argumen"
 
 #: core/project_settings.cpp
+msgid "Scene Naming"
+msgstr "Penamaan Skena"
+
+#: core/project_settings.cpp
 msgid "Search In File Extensions"
 msgstr "Cari dalam Ekstensi File"
 
@@ -673,18 +688,15 @@ msgstr "Cari dalam Ekstensi File"
 msgid "Script Templates Search Path"
 msgstr "Jalur Pencarian Template Skrip"
 
-#: core/project_settings.cpp editor/editor_node.cpp
-#: editor/plugins/version_control_editor_plugin.cpp
-msgid "Version Control"
-msgstr "Kontrol Versi"
-
 #: core/project_settings.cpp
-msgid "Autoload On Startup"
+#, fuzzy
+msgid "Version Control Autoload On Startup"
 msgstr "Muat Otomatis Saat Memulai"
 
 #: core/project_settings.cpp
-msgid "Plugin Name"
-msgstr "Nama Plugin"
+#, fuzzy
+msgid "Version Control Plugin Name"
+msgstr "Kontrol Versi"
 
 #: core/project_settings.cpp scene/2d/collision_object_2d.cpp
 #: scene/3d/collision_object.cpp scene/gui/control.cpp
@@ -1195,7 +1207,7 @@ msgstr "Atur Pegangan"
 #: scene/2d/audio_stream_player_2d.cpp scene/3d/audio_stream_player_3d.cpp
 #: scene/audio/audio_stream_player.cpp scene/gui/video_player.cpp
 msgid "Stream"
-msgstr ""
+msgstr "Arus"
 
 #: editor/animation_track_editor.cpp
 #, fuzzy
@@ -2147,14 +2159,15 @@ msgstr "Favorit:"
 msgid "Recent:"
 msgstr "Saat ini:"
 
-#: editor/create_dialog.cpp editor/plugins/script_editor_plugin.cpp
-#: editor/property_selector.cpp editor/quick_open.cpp editor/rename_dialog.cpp
+#: editor/create_dialog.cpp editor/editor_quick_open.cpp
+#: editor/plugins/script_editor_plugin.cpp editor/property_selector.cpp
+#: editor/rename_dialog.cpp
 #: modules/visual_script/visual_script_property_selector.cpp
 msgid "Search:"
 msgstr "Cari:"
 
-#: editor/create_dialog.cpp editor/plugins/script_editor_plugin.cpp
-#: editor/property_selector.cpp editor/quick_open.cpp
+#: editor/create_dialog.cpp editor/editor_quick_open.cpp
+#: editor/plugins/script_editor_plugin.cpp editor/property_selector.cpp
 #: modules/visual_script/visual_script_property_selector.cpp
 msgid "Matches:"
 msgstr "Kecocokan:"
@@ -2214,8 +2227,8 @@ msgstr "Cari Resource Pengganti:"
 
 #: editor/dependency_editor.cpp editor/editor_file_dialog.cpp
 #: editor/editor_help_search.cpp editor/editor_node.cpp
-#: editor/filesystem_dock.cpp editor/plugins/script_editor_plugin.cpp
-#: editor/property_selector.cpp editor/quick_open.cpp
+#: editor/editor_quick_open.cpp editor/filesystem_dock.cpp
+#: editor/plugins/script_editor_plugin.cpp editor/property_selector.cpp
 #: editor/script_create_dialog.cpp
 #: modules/visual_script/visual_script_property_selector.cpp
 #: scene/gui/file_dialog.cpp
@@ -2788,17 +2801,16 @@ msgstr "Pilih"
 
 #: editor/editor_export.cpp
 msgid "Project export for platform:"
-msgstr ""
+msgstr "Proyek ekspor untuk platform:"
 
 #: editor/editor_export.cpp
 #, fuzzy
-msgid "Completed with errors."
+msgid "Completed with warnings."
 msgstr "Salin Lokasi Node"
 
 #: editor/editor_export.cpp
-#, fuzzy
-msgid "Completed sucessfully."
-msgstr "Paket Sukses Terpasang!"
+msgid "Completed successfully."
+msgstr "Sukses."
 
 #: editor/editor_export.cpp
 #, fuzzy
@@ -2838,9 +2850,8 @@ msgid "Can't open file to read from path \"%s\"."
 msgstr "Tidak dapat membuka file untuk menulis:"
 
 #: editor/editor_export.cpp
-#, fuzzy
 msgid "Save ZIP"
-msgstr "Simpan Sebagai"
+msgstr "Simpan ZIP"
 
 #: editor/editor_export.cpp
 msgid ""
@@ -2867,7 +2878,7 @@ msgid ""
 msgstr ""
 "Platform target membutuhkan kompressi tekstur 'ETC' untuk mengembalikan "
 "driver ke GLES2. \n"
-"Aktifkan 'Impor Lainnya' di Pengaturan Proyek, atau matikan 'Driver Fallback "
+"Aktifkan 'Impor Etc' di Pengaturan Proyek, atau matikan 'Driver Fallback "
 "Enabled'."
 
 #: editor/editor_export.cpp
@@ -2884,7 +2895,7 @@ msgid ""
 "Enable 'Import Etc 2' or 'Import Pvrtc' in Project Settings."
 msgstr ""
 "Platform target membutuhkan kompresi tekstur 'ETC2' atau 'PVRTC' untuk "
-"GLES3. Aktifkan 'Impor Lainnya 2' atau 'Import Pvrtc' di Pengaturan Proyek."
+"GLES3. Aktifkan 'Impor Etc 2' atau 'Import Pvrtc' di Pengaturan Proyek."
 
 #: editor/editor_export.cpp
 msgid ""
@@ -2919,7 +2930,7 @@ msgstr "Operator warna."
 
 #: editor/editor_export.cpp
 msgid "64 Bits"
-msgstr ""
+msgstr "64 Bits"
 
 #: editor/editor_export.cpp
 msgid "Embed PCK"
@@ -3277,9 +3288,8 @@ msgid "Save a File"
 msgstr "Simpan sebuah File"
 
 #: editor/editor_file_dialog.cpp scene/gui/file_dialog.cpp
-#, fuzzy
 msgid "Access"
-msgstr "Sukses!"
+msgstr "Akses"
 
 #: editor/editor_file_dialog.cpp editor/editor_settings.cpp
 #, fuzzy
@@ -4330,14 +4340,6 @@ msgstr ""
 "Tidak dapat menulis ke file '%s', file sedang digunakan, terkunci atau tidak "
 "memiliki izin."
 
-#: editor/editor_node.cpp editor/plugins/theme_editor_plugin.cpp
-msgid "Scene"
-msgstr "Scene"
-
-#: editor/editor_node.cpp
-msgid "Scene Naming"
-msgstr "Penamaan Skena"
-
 #: editor/editor_node.cpp editor/editor_settings.cpp editor/scene_tree_dock.cpp
 #: servers/arvr/arvr_interface.cpp
 #, fuzzy
@@ -4466,6 +4468,10 @@ msgid "Default Color Picker Mode"
 msgstr ""
 
 #: editor/editor_node.cpp editor/plugins/version_control_editor_plugin.cpp
+msgid "Version Control"
+msgstr "Kontrol Versi"
+
+#: editor/editor_node.cpp editor/plugins/version_control_editor_plugin.cpp
 #, fuzzy
 msgid "Username"
 msgstr "Ubah Nama"
@@ -4493,6 +4499,10 @@ msgstr "Toggle mode tanpa gangguan."
 #: editor/editor_node.cpp
 msgid "Add a new scene."
 msgstr "Tambah skena baru."
+
+#: editor/editor_node.cpp editor/plugins/theme_editor_plugin.cpp
+msgid "Scene"
+msgstr "Scene"
 
 #: editor/editor_node.cpp
 msgid "Go to previously opened scene."
@@ -4566,6 +4576,7 @@ msgstr "Perkakas macam-macam proyek atau lingkup skena."
 
 #: editor/editor_node.cpp editor/project_manager.cpp
 #: editor/script_create_dialog.cpp modules/mono/editor/csharp_project.cpp
+#: modules/mono/godotsharp_dirs.cpp
 msgid "Project"
 msgstr "Proyek"
 
@@ -5598,6 +5609,15 @@ msgstr "Lebar Peta kecil"
 #: editor/editor_settings.cpp
 msgid "Mouse Extra Buttons Navigate History"
 msgstr "Tombol Ekstra Mouse Navigasi Riwayat"
+
+#: editor/editor_settings.cpp
+#, fuzzy
+msgid "Drag And Drop Selection"
+msgstr "Isi Seleksi GridMap"
+
+#: editor/editor_settings.cpp
+msgid "Stay In Script Editor On Node Selected"
+msgstr ""
 
 #: editor/editor_settings.cpp
 msgid "Appearance"
@@ -7451,7 +7471,8 @@ msgid "8 Bit"
 msgstr "8 Bit"
 
 #: editor/import/resource_importer_wav.cpp main/main.cpp
-#: modules/mono/editor/csharp_project.cpp modules/mono/mono_gd/gd_mono.cpp
+#: modules/mono/editor/csharp_project.cpp modules/mono/godotsharp_dirs.cpp
+#: modules/mono/mono_gd/gd_mono.cpp
 msgid "Mono"
 msgstr ""
 
@@ -8035,8 +8056,17 @@ msgid "New Anim"
 msgstr "Animasi Baru"
 
 #: editor/plugins/animation_player_editor_plugin.cpp
+msgid "Create New Animation"
+msgstr "Buat Animasi Baru"
+
+#: editor/plugins/animation_player_editor_plugin.cpp
 msgid "Change Animation Name:"
 msgstr "Ubah Nama Animasi:"
+
+#: editor/plugins/animation_player_editor_plugin.cpp
+#: editor/plugins/sprite_frames_editor_plugin.cpp
+msgid "Rename Animation"
+msgstr "Ubah Nama Animasi"
 
 #: editor/plugins/animation_player_editor_plugin.cpp
 #: editor/plugins/sprite_frames_editor_plugin.cpp
@@ -8055,11 +8085,6 @@ msgstr "Nama animasi tidak valid!"
 #: editor/plugins/animation_player_editor_plugin.cpp
 msgid "Animation name already exists!"
 msgstr "Nama animasi sudah ada!"
-
-#: editor/plugins/animation_player_editor_plugin.cpp
-#: editor/plugins/sprite_frames_editor_plugin.cpp
-msgid "Rename Animation"
-msgstr "Ubah Nama Animasi"
 
 #: editor/plugins/animation_player_editor_plugin.cpp
 msgid "Duplicate Animation"
@@ -8203,10 +8228,6 @@ msgstr "Masukkan Gizmo (3D)"
 #: editor/plugins/animation_player_editor_plugin.cpp
 msgid "Pin AnimationPlayer"
 msgstr "Sematkan AnimationPlayer"
-
-#: editor/plugins/animation_player_editor_plugin.cpp
-msgid "Create New Animation"
-msgstr "Buat Animasi Baru"
 
 #: editor/plugins/animation_player_editor_plugin.cpp
 msgid "Animation Name:"
@@ -11833,6 +11854,11 @@ msgid "New Animation"
 msgstr "Animasi Baru"
 
 #: editor/plugins/sprite_frames_editor_plugin.cpp
+#, fuzzy
+msgid "Filter animations"
+msgstr "Filter method"
+
+#: editor/plugins/sprite_frames_editor_plugin.cpp
 msgid "Speed:"
 msgstr "Kecepatan:"
 
@@ -12355,9 +12381,8 @@ msgid "Available Node-based types:"
 msgstr "Profil yang Tersedia:"
 
 #: editor/plugins/theme_editor_plugin.cpp
-#, fuzzy
 msgid "Type name is empty!"
-msgstr "Nama berkas kosong."
+msgstr "Nama tipe kosong!"
 
 #: editor/plugins/theme_editor_plugin.cpp
 #, fuzzy
@@ -13080,9 +13105,10 @@ msgstr "Opsi-opsi Snap"
 #: scene/2d/path_2d.cpp scene/2d/polygon_2d.cpp scene/2d/sprite.cpp
 #: scene/3d/cpu_particles.cpp scene/3d/label_3d.cpp scene/3d/path.cpp
 #: scene/3d/physics_body.cpp scene/3d/soft_body.cpp scene/3d/sprite_3d.cpp
-#: scene/gui/graph_node.cpp scene/gui/rich_text_effect.cpp
-#: scene/main/canvas_layer.cpp scene/resources/material.cpp
-#: scene/resources/particles_material.cpp scene/resources/style_box.cpp
+#: scene/3d/visual_instance.cpp scene/gui/graph_node.cpp
+#: scene/gui/rich_text_effect.cpp scene/main/canvas_layer.cpp
+#: scene/resources/material.cpp scene/resources/particles_material.cpp
+#: scene/resources/style_box.cpp
 #, fuzzy
 msgid "Offset"
 msgstr "Pengimbangan:"
@@ -14544,16 +14570,17 @@ msgid "Invalid project path (changed anything?)."
 msgstr "Lokasi proyek tidak valid (mengubah sesuatu?)."
 
 #: editor/project_manager.cpp
+#, fuzzy
 msgid ""
-"Couldn't load project.godot in project path (error %d). It may be missing or "
-"corrupted."
+"Couldn't load project at '%s' (error %d). It may be missing or corrupted."
 msgstr ""
 "Tidak dapat memuat project.godot dalam lokasi proyek (galat %d). Mungkin "
 "berkas itu tidak ada atau rusak."
 
 #: editor/project_manager.cpp
-msgid "Couldn't edit project.godot in project path."
-msgstr "Tidak dapat menyunting project.godot dalam lokasi proyek."
+#, fuzzy
+msgid "Couldn't save project at '%s' (error %d)."
+msgstr "Tidak dapat membuka proyek di '%s'."
 
 #: editor/project_manager.cpp
 msgid "Couldn't create project.godot in project path."
@@ -15601,18 +15628,19 @@ msgstr ""
 msgid "Make Local"
 msgstr "Jadikan Local"
 
-#: editor/scene_tree_dock.cpp editor/scene_tree_editor.cpp
-msgid "Another node already uses this unique name in the scene."
-msgstr ""
+#: editor/scene_tree_dock.cpp
+#, fuzzy
+msgid "Enable Scene Unique Name(s)"
+msgstr "Nama Unik"
 
 #: editor/scene_tree_dock.cpp
 #, fuzzy
-msgid "Enable Scene Unique Name"
-msgstr "Nama Unik"
+msgid "Unique names already used by another node in the scene:"
+msgstr "Nama telah digunakan oleh fungsi/variabel/sinyal yang lain:"
 
-#: editor/scene_tree_dock.cpp editor/scene_tree_editor.cpp
+#: editor/scene_tree_dock.cpp
 #, fuzzy
-msgid "Disable Scene Unique Name"
+msgid "Disable Scene Unique Name(s)"
 msgstr "Nama Unik"
 
 #: editor/scene_tree_dock.cpp
@@ -15816,6 +15844,11 @@ msgid "Button Group"
 msgstr "Tombol Grup"
 
 #: editor/scene_tree_editor.cpp
+#, fuzzy
+msgid "Disable Scene Unique Name"
+msgstr "Nama Unik"
+
+#: editor/scene_tree_editor.cpp
 msgid "(Connecting From)"
 msgstr "(Menghubungkan dari)"
 
@@ -15889,6 +15922,10 @@ msgstr ""
 #: editor/scene_tree_editor.cpp
 msgid "Invalid node name, the following characters are not allowed:"
 msgstr "Nama node tidak valid, karakter berikut tidak diperbolehkan:"
+
+#: editor/scene_tree_editor.cpp
+msgid "Another node already uses this unique name in the scene."
+msgstr ""
 
 #: editor/scene_tree_editor.cpp
 msgid "Rename Node"
@@ -17772,6 +17809,21 @@ msgstr "Isi Pilihan"
 msgid "Auto Update Project"
 msgstr "Proyek Tanpa Nama"
 
+#: modules/mono/godotsharp_dirs.cpp
+#, fuzzy
+msgid "Assembly Name"
+msgstr "Nama Tampilan"
+
+#: modules/mono/godotsharp_dirs.cpp
+#, fuzzy
+msgid "Solution Directory"
+msgstr "Pilih sebuah Direktori"
+
+#: modules/mono/godotsharp_dirs.cpp
+#, fuzzy
+msgid "C# Project Directory"
+msgstr "Pilih sebuah Direktori"
+
 #: modules/mono/mono_gd/gd_mono_utils.cpp
 msgid "End of inner exception stack trace"
 msgstr "Akhir dari inner exception stack trace"
@@ -18873,6 +18925,11 @@ msgstr "Package setidaknya harus memiliki sebuah pemisah '.'."
 
 #: platform/android/export/export_plugin.cpp
 #, fuzzy
+msgid "Custom Build"
+msgstr "Gunakan Direktori Pengguna Kustom"
+
+#: platform/android/export/export_plugin.cpp
+#, fuzzy
 msgid "Use Custom Build"
 msgstr "Gunakan Direktori Pengguna Kustom"
 
@@ -18880,6 +18937,16 @@ msgstr "Gunakan Direktori Pengguna Kustom"
 #, fuzzy
 msgid "Export Format"
 msgstr "Lokasi Ekspor"
+
+#: platform/android/export/export_plugin.cpp
+#, fuzzy
+msgid "Min SDK"
+msgstr "Ukuran Garis Tepi:"
+
+#: platform/android/export/export_plugin.cpp
+#, fuzzy
+msgid "Target SDK"
+msgstr "FPS Sasaran"
 
 #: platform/android/export/export_plugin.cpp platform/iphone/export/export.cpp
 #, fuzzy
@@ -18922,16 +18989,6 @@ msgstr "Inspeksi Instance Sebelumnya"
 #: platform/android/export/export_plugin.cpp
 msgid "Code"
 msgstr "Kode"
-
-#: platform/android/export/export_plugin.cpp
-#, fuzzy
-msgid "Min SDK"
-msgstr "Ukuran Garis Tepi:"
-
-#: platform/android/export/export_plugin.cpp
-#, fuzzy
-msgid "Target SDK"
-msgstr "FPS Sasaran"
 
 #: platform/android/export/export_plugin.cpp platform/uwp/export/export.cpp
 #, fuzzy
@@ -19173,7 +19230,7 @@ msgstr "\"Gunakan Build Custom\" harus diaktifkan untuk menggunakan plugin."
 #: platform/android/export/export_plugin.cpp
 #, fuzzy
 msgid ""
-"\"Hand Tracking\" is only valid when \"Xr Mode\" is \"Oculus Mobile VrApi\" "
+"\"Hand Tracking\" is only valid when \"XR Mode\" is \"Oculus Mobile VrApi\" "
 "or \"OpenXR\"."
 msgstr ""
 "\"Pelacakan Tangan\" hanya valid ketika \"Mode Xr\" bernilai \"Oculus Mobile "
@@ -19181,7 +19238,7 @@ msgstr ""
 
 #: platform/android/export/export_plugin.cpp
 #, fuzzy
-msgid "\"Passthrough\" is only valid when \"Xr Mode\" is \"OpenXR\"."
+msgid "\"Passthrough\" is only valid when \"XR Mode\" is \"OpenXR\"."
 msgstr ""
 "\"Pelacakan Tangan\" hanya valid ketika \"Mode Xr\" bernilai \"Oculus Mobile "
 "VR\"."
@@ -19194,20 +19251,41 @@ msgstr ""
 #: platform/android/export/export_plugin.cpp
 #, fuzzy
 msgid ""
-"Changing the \"Min Sdk\" is only valid when \"Use Custom Build\" is enabled."
+"\"Min SDK\" can only be overridden when \"Use Custom Build\" is enabled."
 msgstr ""
 "\"Expor AAB\" hanya bisa valid ketika \"Gunakan Build Custom\" diaktifkan."
+
+#: platform/android/export/export_plugin.cpp
+msgid "\"Min SDK\" should be a valid integer, but got \"%s\" which is invalid."
+msgstr ""
+
+#: platform/android/export/export_plugin.cpp
+msgid ""
+"\"Min SDK\" cannot be lower than %d, which is the version needed by the "
+"Godot library."
+msgstr ""
 
 #: platform/android/export/export_plugin.cpp
 #, fuzzy
 msgid ""
-"Changing the \"Target Sdk\" is only valid when \"Use Custom Build\" is "
-"enabled."
+"\"Target SDK\" can only be overridden when \"Use Custom Build\" is enabled."
 msgstr ""
 "\"Expor AAB\" hanya bisa valid ketika \"Gunakan Build Custom\" diaktifkan."
 
 #: platform/android/export/export_plugin.cpp
-msgid "\"Target Sdk\" version must be greater or equal to \"Min Sdk\" version."
+msgid ""
+"\"Target SDK\" should be a valid integer, but got \"%s\" which is invalid."
+msgstr ""
+
+#: platform/android/export/export_plugin.cpp
+msgid ""
+"\"Target SDK\" %d is higher than the default version %d. This may work, but "
+"wasn't tested and may be unstable."
+msgstr ""
+
+#: platform/android/export/export_plugin.cpp
+#, fuzzy
+msgid "\"Target SDK\" version must be greater or equal to \"Min SDK\" version."
 msgstr ""
 "Versi \"Target SDK\" harus lebih tinggi atau sama dengan versi \"Min SDK\"."
 
@@ -19236,9 +19314,8 @@ msgid "Could not find keystore, unable to export."
 msgstr "Tidak dapat menemukan keystore, tidak bisa ekspor."
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid "Could not start apksigner executable."
-msgstr "Tidak dapat memulai subproses!"
+msgstr "Tidak dapat memulai apksigner."
 
 #: platform/android/export/export_plugin.cpp
 msgid "'apksigner' returned with error #%d"
@@ -19271,9 +19348,8 @@ msgid "Invalid filename! Android APK requires the *.apk extension."
 msgstr "Nama berkas tidak valid! APK Android memerlukan ekstensi *.apk ."
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid "Unsupported export format!"
-msgstr "Format ekspor tidak didukung!\n"
+msgstr "Format ekspor tidak didukung!"
 
 #: platform/android/export/export_plugin.cpp
 msgid ""
@@ -19284,15 +19360,12 @@ msgstr ""
 "versinya. Silakan pasang ulang dari menu 'Proyek'."
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid ""
 "Android build version mismatch: Template installed: %s, Godot version: %s. "
 "Please reinstall Android build template from 'Project' menu."
 msgstr ""
-"Versi build Android tidak cocok:\n"
-"   Templat terpasang: %s\n"
-"   Versi Godot: %s\n"
-"Silakan pasang ulang templat build Android dari menu 'Project'."
+"Versi build Android tidak cocok: Templat terpasang: %s, Versi Godot: %s. "
+"Silakan pasang ulang templat build Android dari menu 'Proyek'."
 
 #: platform/android/export/export_plugin.cpp
 msgid ""
@@ -19300,9 +19373,8 @@ msgid ""
 msgstr ""
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid "Could not export project files to gradle project."
-msgstr "Tidak dapat menyunting proyek gradle dalam lokasi proyek\n"
+msgstr "Tidak dapat mengekspor file proyek ke dalam lokasi proyek gradle."
 
 #: platform/android/export/export_plugin.cpp
 msgid "Could not write expansion package file!"
@@ -19313,13 +19385,12 @@ msgid "Building Android Project (gradle)"
 msgstr "Membangun Proyek Android (gradle)"
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid ""
 "Building of Android project failed, check output for the error. "
 "Alternatively visit docs.godotengine.org for Android build documentation."
 msgstr ""
-"Pembangunan proyek Android gagal, periksa output untuk galatnya.\n"
-"Atau kunjungi docs.godotengine.org untuk dokumentasi build Android."
+"Pembangunan proyek Android gagal, periksa output untuk galatnya. Atau "
+"kunjungi docs.godotengine.org untuk dokumentasi build Android."
 
 #: platform/android/export/export_plugin.cpp
 msgid "Moving output"
@@ -19344,11 +19415,8 @@ msgid "Creating APK..."
 msgstr "Membuat kontur..."
 
 #: platform/android/export/export_plugin.cpp
-#, fuzzy
 msgid "Could not find template APK to export: \"%s\"."
-msgstr ""
-"Tidak dapat menemukan contoh APK untuk ekspor:\n"
-"%s"
+msgstr "Tidak dapat menemukan contoh APK untuk ekspor: \"%s\""
 
 #: platform/android/export/export_plugin.cpp
 msgid ""
@@ -19507,9 +19575,8 @@ msgid "Capabilities"
 msgstr "Kapabilitas"
 
 #: platform/iphone/export/export.cpp
-#, fuzzy
 msgid "Access Wi-Fi"
-msgstr "Sukses!"
+msgstr "Akses Wi-Fi"
 
 #: platform/iphone/export/export.cpp
 #, fuzzy
@@ -19609,6 +19676,11 @@ msgstr "Potong Node"
 #, fuzzy
 msgid "Custom BG Color"
 msgstr "Potong Node"
+
+#: platform/iphone/export/export.cpp
+#, fuzzy
+msgid "Export Icons"
+msgstr "Ikon Ekspor"
 
 #: platform/iphone/export/export.cpp platform/javascript/export/export.cpp
 #: platform/osx/export/export.cpp
@@ -20057,9 +20129,8 @@ msgid "Could not open icon file \"%s\"."
 msgstr "Tidak dapat ekspor berkas proyek"
 
 #: platform/osx/export/export.cpp
-#, fuzzy
 msgid "Could not start xcrun executable."
-msgstr "Tidak dapat memulai subproses!"
+msgstr "Tidak dapat memulai subproses xcrun."
 
 #: platform/osx/export/export.cpp
 #, fuzzy
@@ -20137,9 +20208,8 @@ msgid "DMG Creation"
 msgstr "Arah"
 
 #: platform/osx/export/export.cpp
-#, fuzzy
 msgid "Could not start hdiutil executable."
-msgstr "Tidak dapat memulai subproses!"
+msgstr "Tidak dapat memulai subproses hdiutil."
 
 #: platform/osx/export/export.cpp
 msgid "`hdiutil create` failed - file exists."
@@ -20221,7 +20291,7 @@ msgstr "Proyeksi"
 #: platform/osx/export/export.cpp
 #, fuzzy
 msgid "Could not open file to read from path \"%s\"."
-msgstr "Tidak dapat menyunting proyek gradle dalam lokasi proyek\n"
+msgstr "Tidak dapat membuka file untuk membaca dari jalur \"%s\"."
 
 #: platform/osx/export/export.cpp
 msgid "Invalid bundle identifier:"
@@ -20474,6 +20544,12 @@ msgid "Show Name On Square 310 X 310"
 msgstr "Tampilkan Nama Pada Persegi 310 X 310"
 
 #: platform/uwp/export/export.cpp
+msgid ""
+"Godot's Mono version does not support the UWP platform. Use the standard "
+"build (no C# support) if you wish to target UWP."
+msgstr ""
+
+#: platform/uwp/export/export.cpp
 msgid "Invalid package short name."
 msgstr "Nama pendek paket tidak valid."
 
@@ -20606,15 +20682,15 @@ msgstr "Tidak dapat menemukan keystore, tidak bisa ekspor."
 
 #: platform/windows/export/export.cpp
 msgid ""
-"Could not start rcedit executable, configure rcedit path in the Editor "
-"Settings (Export > Windows > Rcedit)."
+"Could not start rcedit executable. Configure rcedit path in the Editor "
+"Settings (Export > Windows > Rcedit), or disable \"Application > Modify "
+"Resources\" in the export preset."
 msgstr ""
 
 #: platform/windows/export/export.cpp
-msgid ""
-"rcedit failed to modify executable:\n"
-"%s"
-msgstr ""
+#, fuzzy
+msgid "rcedit failed to modify executable: %s."
+msgstr "Ekstensi tidak valid."
 
 #: platform/windows/export/export.cpp
 #, fuzzy
@@ -20638,15 +20714,15 @@ msgstr "Nama tidak sah."
 
 #: platform/windows/export/export.cpp
 msgid ""
-"Could not start signtool executable, configure signtool path in the Editor "
-"Settings (Export > Windows > Signtool)."
+"Could not start signtool executable. Configure signtool path in the Editor "
+"Settings (Export > Windows > Signtool), or disable \"Codesign\" in the "
+"export preset."
 msgstr ""
 
 #: platform/windows/export/export.cpp
-msgid ""
-"Signtool failed to sign executable:\n"
-"%s"
-msgstr ""
+#, fuzzy
+msgid "Signtool failed to sign executable: %s."
+msgstr "Ekstensi tidak valid."
 
 #: platform/windows/export/export.cpp
 #, fuzzy
@@ -20880,7 +20956,7 @@ msgstr "Perbesar Pandangan"
 msgid "Custom Viewport"
 msgstr "Penampil Kustom"
 
-#: scene/2d/camera_2d.cpp scene/3d/camera.cpp
+#: scene/2d/camera_2d.cpp scene/3d/camera.cpp scene/3d/interpolated_camera.cpp
 #: scene/animation/animation_player.cpp scene/animation/animation_tree.cpp
 #: scene/animation/animation_tree_player.cpp scene/main/timer.cpp
 #, fuzzy
@@ -21617,9 +21693,41 @@ msgstr ""
 msgid "Edge Connection Margin"
 msgstr "Sunting Koneksi:"
 
+#: scene/2d/navigation_2d.cpp
+msgid ""
+"'Navigation2D' node and 'Navigation2D.get_simple_path()' are deprecated and "
+"will be removed in a future version. Use 'Navigation2DServer.map_get_path()' "
+"instead."
+msgstr ""
+
+#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
+#, fuzzy
+msgid "Pathfinding"
+msgstr "Mengikat"
+
+#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
+#, fuzzy
+msgid "Path Desired Distance"
+msgstr "Target Jarak yang Diinginkan"
+
 #: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
 msgid "Target Desired Distance"
 msgstr "Target Jarak yang Diinginkan"
+
+#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
+#, fuzzy
+msgid "Path Max Distance"
+msgstr "Pilih Jarak:"
+
+#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
+#, fuzzy
+msgid "Avoidance"
+msgstr "Lanjut"
+
+#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
+#, fuzzy
+msgid "Avoidance Enabled"
+msgstr "Aktifkan"
 
 #: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
 msgid "Neighbor Dist"
@@ -21637,16 +21745,6 @@ msgstr "Balik secara Horizontal"
 #: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
 msgid "Max Speed"
 msgstr "Kecepatan Maks"
-
-#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
-#, fuzzy
-msgid "Path Max Distance"
-msgstr "Pilih Jarak:"
-
-#: scene/2d/navigation_agent_2d.cpp scene/3d/navigation_agent.cpp
-#, fuzzy
-msgid "Avoidance Enabled"
-msgstr "Aktifkan"
 
 #: scene/2d/navigation_agent_2d.cpp
 #, fuzzy
@@ -21694,7 +21792,7 @@ msgstr "Menjelajah"
 msgid "Rotation Degrees"
 msgstr "Derajat Putaran"
 
-#: scene/2d/node_2d.cpp
+#: scene/2d/node_2d.cpp scene/3d/spatial.cpp
 msgid "Global Rotation"
 msgstr "Rotasi Global"
 
@@ -22848,6 +22946,13 @@ msgstr ""
 msgid "Transform Normals"
 msgstr "Transformasi Dibatalkan."
 
+#: scene/3d/navigation.cpp
+msgid ""
+"'Navigation' node and 'Navigation.get_simple_path()' are deprecated and will "
+"be removed in a future version. Use 'NavigationServer.map_get_path()' "
+"instead."
+msgstr ""
+
 #: scene/3d/navigation.cpp scene/resources/curve.cpp
 msgid "Up Vector"
 msgstr "Vektor Atas"
@@ -23756,6 +23861,11 @@ msgstr ""
 "Ubah ukurannya melalui \"collision shape\"-anaknya saja."
 
 #: scene/3d/spatial.cpp
+#, fuzzy
+msgid "Global Translation"
+msgstr "Transformasi Global"
+
+#: scene/3d/spatial.cpp
 msgid "Matrix"
 msgstr "Matriks"
 
@@ -23855,6 +23965,16 @@ msgstr "Galat"
 #: scene/3d/visibility_notifier.cpp
 msgid "AABB"
 msgstr ""
+
+#: scene/3d/visual_instance.cpp
+#, fuzzy
+msgid "Sorting"
+msgstr "Urutkan"
+
+#: scene/3d/visual_instance.cpp
+#, fuzzy
+msgid "Use AABB Center"
+msgstr "Gunakan Sebagai Kemudi"
 
 #: scene/3d/visual_instance.cpp scene/resources/navigation_mesh.cpp
 #, fuzzy
@@ -24676,7 +24796,7 @@ msgstr ""
 
 #: scene/gui/line_edit.cpp scene/gui/text_edit.cpp
 msgid "Caret"
-msgstr ""
+msgstr "Tanda sisipan"
 
 #: scene/gui/line_edit.cpp scene/gui/text_edit.cpp
 msgid "Blink"
@@ -25017,6 +25137,11 @@ msgstr "Direktori:"
 
 #: scene/gui/text_edit.cpp
 #, fuzzy
+msgid "Drag And Drop Selection Enabled"
+msgstr "Hanya yang Dipilih"
+
+#: scene/gui/text_edit.cpp
+#, fuzzy
 msgid "Hiding Enabled"
 msgstr "Aktifkan"
 
@@ -25353,9 +25478,8 @@ msgid "Draw 2D Outlines"
 msgstr "Buat Garis Tepi"
 
 #: scene/main/scene_tree.cpp servers/visual_server.cpp
-#, fuzzy
 msgid "Reflections"
-msgstr "Arah"
+msgstr "Refleksi"
 
 #: scene/main/scene_tree.cpp
 #, fuzzy
@@ -25423,24 +25547,20 @@ msgid "Viewport Path"
 msgstr "Lokasi Ekspor"
 
 #: scene/main/viewport.cpp
-msgid ""
-"This viewport is not set as render target. If you intend for it to display "
-"its contents directly to the screen, make it a child of a Control so it can "
-"obtain a size. Otherwise, make it a RenderTarget and assign its internal "
-"texture to some node for display."
-msgstr ""
-"Viewport ini tidak diatur sebagai target render. Jika anda berniat untuk "
-"menampilkan konten-kontennya secara langsung ke layar, jadikan viewport ini "
-"sebagai child dari sebuah Control agar ia bisa memperoleh ukuran. Jika "
-"tidak, jadikan sebagai RenderTarget dan tetapkan tekstur internal nya ke "
-"beberapa node untuk ditampilkan."
-
-#: scene/main/viewport.cpp
 #, fuzzy
 msgid ""
 "The Viewport size must be greater than or equal to 2 pixels on both "
 "dimensions to render anything."
 msgstr "Ukuran viewport harus lebih besar dari 0 untuk me-render apa pun."
+
+#: scene/main/viewport.cpp
+msgid ""
+"This Viewport has HDR enabled, but its Usage is set to 2D or 2D No-"
+"Sampling.\n"
+"HDR is only supported in Viewports that have their Usage set to 3D or 3D No-"
+"Effects.\n"
+"HDR will be disabled for this Viewport."
+msgstr ""
 
 #: scene/main/viewport.cpp
 msgid "ARVR"
@@ -26715,9 +26835,8 @@ msgstr ""
 
 #: scene/resources/environment.cpp
 #: servers/audio/effects/audio_effect_chorus.cpp
-#, fuzzy
 msgid "2"
-msgstr "2D"
+msgstr "2"
 
 #: scene/resources/environment.cpp
 #: servers/audio/effects/audio_effect_chorus.cpp
@@ -27212,6 +27331,16 @@ msgstr ""
 #: scene/resources/navigation_mesh.cpp
 msgid "Walkable Low Height Spans"
 msgstr ""
+
+#: scene/resources/navigation_mesh.cpp
+#, fuzzy
+msgid "Baking AABB"
+msgstr "Membuat AABB"
+
+#: scene/resources/navigation_mesh.cpp
+#, fuzzy
+msgid "Baking AABB Offset"
+msgstr "Pengimbangan:"
 
 #: scene/resources/occluder_shape.cpp
 msgid "Spheres"

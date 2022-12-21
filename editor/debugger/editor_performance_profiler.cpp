@@ -61,7 +61,7 @@ void EditorPerformanceProfiler::Monitor::update_value(float p_value) {
 		} break;
 	}
 	item->set_text(1, label);
-	item->set_tooltip(1, tooltip);
+	item->set_tooltip_text(1, tooltip);
 
 	if (p_value > max) {
 		max = p_value;
@@ -73,7 +73,7 @@ void EditorPerformanceProfiler::Monitor::reset() {
 	max = 0.0f;
 	if (item) {
 		item->set_text(1, "");
-		item->set_tooltip(1, "");
+		item->set_tooltip_text(1, "");
 	}
 }
 
@@ -92,7 +92,7 @@ String EditorPerformanceProfiler::_create_label(float p_value, Performance::Moni
 }
 
 void EditorPerformanceProfiler::_monitor_select() {
-	monitor_draw->update();
+	monitor_draw->queue_redraw();
 }
 
 void EditorPerformanceProfiler::_monitor_draw() {
@@ -136,7 +136,7 @@ void EditorPerformanceProfiler::_monitor_draw() {
 		monitor_draw->draw_string(graph_font, rect.position + Point2(0, graph_font->get_ascent(font_size)), current.item->get_text(0), HORIZONTAL_ALIGNMENT_LEFT, rect.size.x, font_size, draw_color);
 
 		draw_color.a = 0.9f;
-		float value_position = rect.size.width - graph_font->get_string_size(current.item->get_text(1), font_size).width;
+		float value_position = rect.size.width - graph_font->get_string_size(current.item->get_text(1), HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).width;
 		if (value_position < 0) {
 			value_position = 0;
 		}
@@ -184,7 +184,7 @@ void EditorPerformanceProfiler::_monitor_draw() {
 				monitor_draw->draw_line(rect.position + Point2(from, 0), rect.position + Point2(from, rect.size.y), line_color, Math::round(EDSCALE));
 
 				String label = _create_label(e->get(), current.type);
-				Size2 size = graph_font->get_string_size(label, font_size);
+				Size2 size = graph_font->get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size);
 				Vector2 text_top_left_position = Vector2(from, h2) - (size + Vector2(MARKER_MARGIN, MARKER_MARGIN));
 				if (text_top_left_position.x < 0) {
 					text_top_left_position.x = from + MARKER_MARGIN;
@@ -234,6 +234,7 @@ TreeItem *EditorPerformanceProfiler::_get_monitor_base(const StringName &p_base_
 	base->set_editable(0, false);
 	base->set_selectable(0, false);
 	base->set_expand_right(0, true);
+	base->set_custom_font(0, get_theme_font(SNAME("bold"), SNAME("EditorFonts")));
 	base_map.insert(p_base_name, base);
 	return base;
 }
@@ -283,12 +284,12 @@ void EditorPerformanceProfiler::_marker_input(const Ref<InputEvent> &p_event) {
 					float spacing = float(point_sep) / float(columns);
 					marker_frame = (rect.size.x - point.x) / spacing;
 				}
-				monitor_draw->update();
+				monitor_draw->queue_redraw();
 				return;
 			}
 		}
 		marker_key = "";
-		monitor_draw->update();
+		monitor_draw->queue_redraw();
 	}
 }
 
@@ -308,7 +309,7 @@ void EditorPerformanceProfiler::reset() {
 	_build_monitor_tree();
 	marker_key = "";
 	marker_frame = 0;
-	monitor_draw->update();
+	monitor_draw->queue_redraw();
 }
 
 void EditorPerformanceProfiler::update_monitors(const Vector<StringName> &p_names) {
@@ -349,15 +350,15 @@ void EditorPerformanceProfiler::update_monitors(const Vector<StringName> &p_name
 
 void EditorPerformanceProfiler::add_profile_frame(const Vector<float> &p_values) {
 	for (KeyValue<StringName, Monitor> &E : monitors) {
-		float data = 0.0f;
+		float value = 0.0f;
 		if (E.value.frame_index >= 0 && E.value.frame_index < p_values.size()) {
-			data = p_values[E.value.frame_index];
+			value = p_values[E.value.frame_index];
 		}
-		E.value.history.push_front(data);
-		E.value.update_value(data);
+		E.value.history.push_front(value);
+		E.value.update_value(value);
 	}
 	marker_frame++;
-	monitor_draw->update();
+	monitor_draw->queue_redraw();
 }
 
 List<float> *EditorPerformanceProfiler::get_monitor_data(const StringName &p_name) {
@@ -393,7 +394,7 @@ EditorPerformanceProfiler::EditorPerformanceProfiler() {
 	info_message->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	info_message->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 	info_message->set_custom_minimum_size(Size2(100 * EDSCALE, 0));
-	info_message->set_anchors_and_offsets_preset(PRESET_WIDE, PRESET_MODE_KEEP_SIZE, 8 * EDSCALE);
+	info_message->set_anchors_and_offsets_preset(PRESET_FULL_RECT, PRESET_MODE_KEEP_SIZE, 8 * EDSCALE);
 	monitor_draw->add_child(info_message);
 
 	for (int i = 0; i < Performance::MONITOR_MAX; i++) {

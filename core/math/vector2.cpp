@@ -152,13 +152,6 @@ Vector2 Vector2::limit_length(const real_t p_len) const {
 	return v;
 }
 
-Vector2 Vector2::cubic_interpolate(const Vector2 &p_b, const Vector2 &p_pre_a, const Vector2 &p_post_b, const real_t p_weight) const {
-	Vector2 res = *this;
-	res.x = Math::cubic_interpolate(res.x, p_b.x, p_pre_a.x, p_post_b.x, p_weight);
-	res.y = Math::cubic_interpolate(res.y, p_b.y, p_pre_a.y, p_post_b.y, p_weight);
-	return res;
-}
-
 Vector2 Vector2::move_toward(const Vector2 &p_to, const real_t p_delta) const {
 	Vector2 v = *this;
 	Vector2 vd = p_to - v;
@@ -187,6 +180,14 @@ Vector2 Vector2::reflect(const Vector2 &p_normal) const {
 
 bool Vector2::is_equal_approx(const Vector2 &p_v) const {
 	return Math::is_equal_approx(x, p_v.x) && Math::is_equal_approx(y, p_v.y);
+}
+
+bool Vector2::is_zero_approx() const {
+	return Math::is_zero_approx(x) && Math::is_zero_approx(y);
+}
+
+bool Vector2::is_finite() const {
+	return Math::is_finite(x) && Math::is_finite(y);
 }
 
 Vector2::operator String() const {

@@ -46,7 +46,7 @@ float AudioStreamGenerator::get_buffer_length() const {
 	return buffer_len;
 }
 
-Ref<AudioStreamPlayback> AudioStreamGenerator::instance_playback() {
+Ref<AudioStreamPlayback> AudioStreamGenerator::instantiate_playback() {
 	Ref<AudioStreamGeneratorPlayback> playback;
 	playback.instantiate();
 	playback->generator = this;
@@ -60,7 +60,7 @@ String AudioStreamGenerator::get_stream_name() const {
 	return "UserFeed";
 }
 
-float AudioStreamGenerator::get_length() const {
+double AudioStreamGenerator::get_length() const {
 	return 0;
 }
 
@@ -108,7 +108,7 @@ bool AudioStreamGeneratorPlayback::push_buffer(const PackedVector2Array &p_frame
 	}
 
 	const Vector2 *r = p_frames.ptr();
-	if (sizeof(real_t) == 4) {
+	if constexpr (sizeof(real_t) == 4) {
 		//write directly
 		buffer.write((const AudioFrame *)r, to_write);
 	} else {
@@ -167,7 +167,7 @@ float AudioStreamGeneratorPlayback::get_stream_sampling_rate() {
 	return generator->get_mix_rate();
 }
 
-void AudioStreamGeneratorPlayback::start(float p_from_pos) {
+void AudioStreamGeneratorPlayback::start(double p_from_pos) {
 	if (mixed == 0.0) {
 		begin_resample();
 	}
@@ -188,12 +188,16 @@ int AudioStreamGeneratorPlayback::get_loop_count() const {
 	return 0;
 }
 
-float AudioStreamGeneratorPlayback::get_playback_position() const {
+double AudioStreamGeneratorPlayback::get_playback_position() const {
 	return mixed;
 }
 
-void AudioStreamGeneratorPlayback::seek(float p_time) {
+void AudioStreamGeneratorPlayback::seek(double p_time) {
 	//no seek possible
+}
+
+void AudioStreamGeneratorPlayback::tag_used_streams() {
+	generator->tag_used(0);
 }
 
 void AudioStreamGeneratorPlayback::_bind_methods() {

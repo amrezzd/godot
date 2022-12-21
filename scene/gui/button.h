@@ -43,7 +43,6 @@ private:
 	String xl_text;
 	Ref<TextParagraph> text_buf;
 
-	Dictionary opentype_features;
 	String language;
 	TextDirection text_direction = TEXT_DIRECTION_AUTO;
 	TextServer::OverrunBehavior overrun_behavior = TextServer::OVERRUN_NO_TRIMMING;
@@ -55,19 +54,55 @@ private:
 	HorizontalAlignment icon_alignment = HORIZONTAL_ALIGNMENT_LEFT;
 	float _internal_margin[4] = {};
 
-	void _shape();
+	struct ThemeCache {
+		Ref<StyleBox> normal;
+		Ref<StyleBox> normal_mirrored;
+		Ref<StyleBox> pressed;
+		Ref<StyleBox> pressed_mirrored;
+		Ref<StyleBox> hover;
+		Ref<StyleBox> hover_mirrored;
+		Ref<StyleBox> hover_pressed;
+		Ref<StyleBox> hover_pressed_mirrored;
+		Ref<StyleBox> disabled;
+		Ref<StyleBox> disabled_mirrored;
+		Ref<StyleBox> focus;
+
+		Color font_color;
+		Color font_focus_color;
+		Color font_pressed_color;
+		Color font_hover_color;
+		Color font_hover_pressed_color;
+		Color font_disabled_color;
+
+		Ref<Font> font;
+		int font_size = 0;
+		int outline_size = 0;
+		Color font_outline_color;
+
+		Color icon_normal_color;
+		Color icon_focus_color;
+		Color icon_pressed_color;
+		Color icon_hover_color;
+		Color icon_hover_pressed_color;
+		Color icon_disabled_color;
+
+		Ref<Texture2D> icon;
+
+		int h_separation = 0;
+	} theme_cache;
+
+	void _shape(Ref<TextParagraph> p_paragraph = Ref<TextParagraph>(), String p_text = "");
 
 protected:
 	void _set_internal_margin(Side p_side, float p_value);
+	virtual void _update_theme_item_cache() override;
 	void _notification(int p_what);
 	static void _bind_methods();
 
-	bool _set(const StringName &p_name, const Variant &p_value);
-	bool _get(const StringName &p_name, Variant &r_ret) const;
-	void _get_property_list(List<PropertyInfo> *p_list) const;
-
 public:
 	virtual Size2 get_minimum_size() const override;
+
+	Size2 get_minimum_size_for_text_and_icon(const String &p_text, Ref<Texture2D> p_icon) const;
 
 	void set_text(const String &p_text);
 	String get_text() const;
@@ -77,10 +112,6 @@ public:
 
 	void set_text_direction(TextDirection p_text_direction);
 	TextDirection get_text_direction() const;
-
-	void set_opentype_feature(const String &p_name, int p_value);
-	int get_opentype_feature(const String &p_name) const;
-	void clear_opentype_features();
 
 	void set_language(const String &p_language);
 	String get_language() const;
@@ -107,4 +138,4 @@ public:
 	~Button();
 };
 
-#endif
+#endif // BUTTON_H

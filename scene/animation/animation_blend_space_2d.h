@@ -88,7 +88,9 @@ protected:
 	void _tree_changed();
 
 protected:
-	virtual void _validate_property(PropertyInfo &property) const override;
+	bool sync = false;
+
+	void _validate_property(PropertyInfo &p_property) const;
 	static void _bind_methods();
 
 public:
@@ -126,7 +128,7 @@ public:
 	void set_y_label(const String &p_label);
 	String get_y_label() const;
 
-	virtual double process(double p_time, bool p_seek, bool p_seek_root) override;
+	virtual double process(double p_time, bool p_seek, bool p_is_external_seeking) override;
 	virtual String get_caption() const override;
 
 	Vector2 get_closest_point(const Vector2 &p_point);
@@ -136,6 +138,9 @@ public:
 
 	void set_blend_mode(BlendMode p_blend_mode);
 	BlendMode get_blend_mode() const;
+
+	void set_use_sync(bool p_sync);
+	bool is_using_sync() const;
 
 	virtual Ref<AnimationNode> get_child_by_name(const StringName &p_name) override;
 

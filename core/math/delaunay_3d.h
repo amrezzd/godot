@@ -33,9 +33,8 @@
 
 #include "core/io/file_access.h"
 #include "core/math/aabb.h"
-#include "core/math/camera_matrix.h"
+#include "core/math/projection.h"
 #include "core/math/vector3.h"
-#include "core/string/print_string.h"
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
 #include "core/templates/vector.h"
@@ -101,7 +100,7 @@ class Delaunay3D {
 		_FORCE_INLINE_ static uint32_t hash(const Triangle &p_triangle) {
 			uint32_t h = hash_djb2_one_32(p_triangle.triangle[0]);
 			h = hash_djb2_one_32(p_triangle.triangle[1], h);
-			return hash_djb2_one_32(p_triangle.triangle[2], h);
+			return hash_fmix32(hash_djb2_one_32(p_triangle.triangle[2], h));
 		}
 	};
 
@@ -184,27 +183,27 @@ class Delaunay3D {
 			return true;
 		}
 
-		CameraMatrix cm;
+		Projection cm;
 
-		cm.matrix[0][0] = p_points[p_simplex.points[0]].x;
-		cm.matrix[0][1] = p_points[p_simplex.points[1]].x;
-		cm.matrix[0][2] = p_points[p_simplex.points[2]].x;
-		cm.matrix[0][3] = p_points[p_simplex.points[3]].x;
+		cm.columns[0][0] = p_points[p_simplex.points[0]].x;
+		cm.columns[0][1] = p_points[p_simplex.points[1]].x;
+		cm.columns[0][2] = p_points[p_simplex.points[2]].x;
+		cm.columns[0][3] = p_points[p_simplex.points[3]].x;
 
-		cm.matrix[1][0] = p_points[p_simplex.points[0]].y;
-		cm.matrix[1][1] = p_points[p_simplex.points[1]].y;
-		cm.matrix[1][2] = p_points[p_simplex.points[2]].y;
-		cm.matrix[1][3] = p_points[p_simplex.points[3]].y;
+		cm.columns[1][0] = p_points[p_simplex.points[0]].y;
+		cm.columns[1][1] = p_points[p_simplex.points[1]].y;
+		cm.columns[1][2] = p_points[p_simplex.points[2]].y;
+		cm.columns[1][3] = p_points[p_simplex.points[3]].y;
 
-		cm.matrix[2][0] = p_points[p_simplex.points[0]].z;
-		cm.matrix[2][1] = p_points[p_simplex.points[1]].z;
-		cm.matrix[2][2] = p_points[p_simplex.points[2]].z;
-		cm.matrix[2][3] = p_points[p_simplex.points[3]].z;
+		cm.columns[2][0] = p_points[p_simplex.points[0]].z;
+		cm.columns[2][1] = p_points[p_simplex.points[1]].z;
+		cm.columns[2][2] = p_points[p_simplex.points[2]].z;
+		cm.columns[2][3] = p_points[p_simplex.points[3]].z;
 
-		cm.matrix[3][0] = 1.0;
-		cm.matrix[3][1] = 1.0;
-		cm.matrix[3][2] = 1.0;
-		cm.matrix[3][3] = 1.0;
+		cm.columns[3][0] = 1.0;
+		cm.columns[3][1] = 1.0;
+		cm.columns[3][2] = 1.0;
+		cm.columns[3][3] = 1.0;
 
 		return ABS(cm.determinant()) <= CMP_EPSILON;
 	}

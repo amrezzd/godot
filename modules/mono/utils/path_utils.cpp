@@ -51,6 +51,37 @@
 
 namespace path {
 
+String find_executable(const String &p_name) {
+#ifdef WINDOWS_ENABLED
+	Vector<String> exts = OS::get_singleton()->get_environment("PATHEXT").split(ENV_PATH_SEP, false);
+#endif
+	Vector<String> env_path = OS::get_singleton()->get_environment("PATH").split(ENV_PATH_SEP, false);
+
+	if (env_path.is_empty()) {
+		return String();
+	}
+
+	for (int i = 0; i < env_path.size(); i++) {
+		String p = path::join(env_path[i], p_name);
+
+#ifdef WINDOWS_ENABLED
+		for (int j = 0; j < exts.size(); j++) {
+			String p2 = p + exts[j].to_lower(); // lowercase to reduce risk of case mismatch warning
+
+			if (FileAccess::exists(p2)) {
+				return p2;
+			}
+		}
+#else
+		if (FileAccess::exists(p)) {
+			return p;
+		}
+#endif
+	}
+
+	return String();
+}
+
 String cwd() {
 #ifdef WINDOWS_ENABLED
 	const DWORD expected_size = ::GetCurrentDirectoryW(0, nullptr);
@@ -62,7 +93,8 @@ String cwd() {
 	}
 
 	String result;
-	if (result.parse_utf16(buffer.ptr())) {
+	result.parse_utf16(buffer.ptr());
+	if (result.is_empty()) {
 		return ".";
 	}
 	return result.simplify_path();
@@ -73,7 +105,7 @@ String cwd() {
 	}
 
 	String result;
-	if (result.parse_utf8(buffer)) {
+	if (result.parse_utf8(buffer) != OK) {
 		return ".";
 	}
 
@@ -114,7 +146,8 @@ String realpath(const String &p_path) {
 	::CloseHandle(hFile);
 
 	String result;
-	if (result.parse_utf16(buffer.ptr())) {
+	result.parse_utf16(buffer.ptr());
+	if (result.is_empty()) {
 		return p_path;
 	}
 
@@ -127,10 +160,10 @@ String realpath(const String &p_path) {
 	}
 
 	String result;
-	bool parse_ok = result.parse_utf8(resolved_path);
+	Error parse_ok = result.parse_utf8(resolved_path);
 	::free(resolved_path);
 
-	if (parse_ok) {
+	if (parse_ok != OK) {
 		return p_path;
 	}
 
@@ -172,7 +205,7 @@ String relative_to_impl(const String &p_path, const String &p_relative_to) {
 			return p_path;
 		}
 
-		return String("..").plus_file(relative_to_impl(p_path, base_dir));
+		return String("..").path_join(relative_to_impl(p_path, base_dir));
 	}
 }
 

@@ -61,6 +61,8 @@ class GDScript : public Script {
 	GDCLASS(GDScript, Script);
 	bool tool = false;
 	bool valid = false;
+	bool reloading = false;
+	bool skip_dependencies = false;
 
 	struct MemberInfo {
 		int index = 0;
@@ -87,7 +89,7 @@ class GDScript : public Script {
 	HashMap<StringName, MemberInfo> member_indices; //members are just indices to the instantiated script.
 	HashMap<StringName, Ref<GDScript>> subclasses;
 	HashMap<StringName, Vector<StringName>> _signals;
-	Vector<Multiplayer::RPCConfig> rpc_functions;
+	Dictionary rpc_config;
 
 #ifdef TOOLS_ENABLED
 
@@ -120,9 +122,12 @@ class GDScript : public Script {
 
 	GDScriptFunction *implicit_initializer = nullptr;
 	GDScriptFunction *initializer = nullptr; //direct pointer to new , faster to locate
+	GDScriptFunction *implicit_ready = nullptr;
 
 	int subclass_count = 0;
 	RBSet<Object *> instances;
+	bool destructing = false;
+	bool clearing = false;
 	//exported members
 	String source;
 	String path;
@@ -136,7 +141,6 @@ class GDScript : public Script {
 	void _super_implicit_constructor(GDScript *p_script, GDScriptInstance *p_instance, Callable::CallError &r_error);
 	GDScriptInstance *_create_instance(const Variant **p_args, int p_argcount, Object *p_owner, bool p_is_ref_counted, Callable::CallError &r_error);
 
-	void _set_subclass_path(Ref<GDScript> &p_sc, const String &p_path);
 	String _get_debug_path() const;
 
 #ifdef TOOLS_ENABLED
@@ -163,6 +167,9 @@ class GDScript : public Script {
 	// This method will map the class name from "RefCounted" to "MyClass.InnerClass".
 	static String _get_gdscript_reference_class_name(const GDScript *p_gdscript);
 
+	GDScript *_get_gdscript_from_variant(const Variant &p_variant);
+	void _get_dependencies(RBSet<GDScript *> &p_dependencies, const GDScript *p_except);
+
 protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -173,10 +180,17 @@ protected:
 	static void _bind_methods();
 
 public:
+	void clear();
+
 	virtual bool is_valid() const override { return valid; }
 
 	bool inherits_script(const Ref<Script> &p_script) const override;
 
+	GDScript *find_class(const String &p_qualified_name);
+	bool has_class(const GDScript *p_script);
+	GDScript *get_root_script();
+	bool is_root_script() const { return _owner == nullptr; }
+	String get_fully_qualified_name() const { return fully_qualified_name; }
 	const HashMap<StringName, Ref<GDScript>> &get_subclasses() const { return subclasses; }
 	const HashMap<StringName, Variant> &get_constants() const { return constants; }
 	const HashSet<StringName> &get_members() const { return members; }
@@ -187,6 +201,10 @@ public:
 	const HashMap<StringName, GDScriptFunction *> &get_member_functions() const { return member_functions; }
 	const Ref<GDScriptNativeClass> &get_native() const { return native; }
 	const String &get_script_class_name() const { return name; }
+
+	RBSet<GDScript *> get_dependencies();
+	RBSet<GDScript *> get_inverted_dependencies();
+	RBSet<GDScript *> get_must_clear_dependencies();
 
 	virtual bool has_script_signal(const StringName &p_signal) const override;
 	virtual void get_script_signal_list(List<MethodInfo> *r_signals) const override;
@@ -221,7 +239,8 @@ public:
 
 	virtual Error reload(bool p_keep_state = false) override;
 
-	void set_script_path(const String &p_path) { path = p_path; } //because subclasses need a path too...
+	virtual void set_path(const String &p_path, bool p_take_over = false) override;
+	String get_script_path() const;
 	Error load_source_code(const String &p_path);
 	Error load_byte_code(const String &p_path);
 
@@ -249,7 +268,7 @@ public:
 	virtual void get_constants(HashMap<StringName, Variant> *p_constants) override;
 	virtual void get_members(HashSet<StringName> *p_members) override;
 
-	virtual const Vector<Multiplayer::RPCConfig> get_rpc_methods() const override;
+	virtual const Variant get_rpc_config() const override;
 
 #ifdef TOOLS_ENABLED
 	virtual bool is_placeholder_fallback_enabled() const override { return placeholder_fallback_enabled; }
@@ -265,6 +284,7 @@ class GDScriptInstance : public ScriptInstance {
 	friend class GDScriptLambdaCallable;
 	friend class GDScriptLambdaSelfCallable;
 	friend class GDScriptCompiler;
+	friend class GDScriptCache;
 	friend struct GDScriptUtilityFunctionsDefinitions;
 
 	ObjectID owner_id;
@@ -286,6 +306,9 @@ public:
 	virtual void get_property_list(List<PropertyInfo> *p_properties) const;
 	virtual Variant::Type get_property_type(const StringName &p_name, bool *r_is_valid = nullptr) const;
 
+	virtual bool property_can_revert(const StringName &p_name) const;
+	virtual bool property_get_revert(const StringName &p_name, Variant &r_ret) const;
+
 	virtual void get_method_list(List<MethodInfo> *p_list) const;
 	virtual bool has_method(const StringName &p_method) const;
 	virtual Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error);
@@ -303,7 +326,7 @@ public:
 
 	void reload_members();
 
-	virtual const Vector<Multiplayer::RPCConfig> get_rpc_methods() const;
+	virtual const Variant get_rpc_config() const;
 
 	GDScriptInstance();
 	~GDScriptInstance();
@@ -338,7 +361,7 @@ class GDScriptLanguage : public ScriptLanguage {
 
 	friend class GDScriptInstance;
 
-	Mutex lock;
+	Mutex mutex;
 
 	friend class GDScript;
 
@@ -368,7 +391,7 @@ public:
 
 		if (_debug_call_stack_pos >= _debug_max_call_stack) {
 			//stack overflow
-			_debug_error = "Stack Overflow (Stack Size: " + itos(_debug_max_call_stack) + ")";
+			_debug_error = vformat("Stack overflow (stack size: %s). Check for infinite recursion in your script.", _debug_max_call_stack);
 			EngineDebugger::get_script_debugger()->debug(this);
 			return;
 		}
@@ -410,7 +433,7 @@ public:
 			csi.write[_debug_call_stack_pos - i - 1].line = _call_stack[i].line ? *_call_stack[i].line : 0;
 			if (_call_stack[i].function) {
 				csi.write[_debug_call_stack_pos - i - 1].func = _call_stack[i].function->get_name();
-				csi.write[_debug_call_stack_pos - i - 1].file = _call_stack[i].function->get_script()->get_path();
+				csi.write[_debug_call_stack_pos - i - 1].file = _call_stack[i].function->get_script()->get_script_path();
 			}
 		}
 		return csi;
@@ -422,6 +445,8 @@ public:
 		StringName _set;
 		StringName _get;
 		StringName _get_property_list;
+		StringName _property_can_revert;
+		StringName _property_get_revert;
 		StringName _script_source;
 
 	} strings;
@@ -430,6 +455,9 @@ public:
 	_FORCE_INLINE_ Variant *get_global_array() { return _global_array; }
 	_FORCE_INLINE_ const HashMap<StringName, int> &get_global_map() const { return globals; }
 	_FORCE_INLINE_ const HashMap<StringName, Variant> &get_named_globals_map() const { return named_globals; }
+	// These two functions should be used when behavior needs to be consistent between in-editor and running the scene
+	bool has_any_global_constant(const StringName &p_name) { return named_globals.has(p_name) || globals.has(p_name); }
+	Variant get_any_global_constant(const StringName &p_name);
 
 	_FORCE_INLINE_ static GDScriptLanguage *get_singleton() { return singleton; }
 
@@ -488,6 +516,7 @@ public:
 
 	virtual void get_public_functions(List<MethodInfo> *p_functions) const override;
 	virtual void get_public_constants(List<Pair<String, Variant>> *p_constants) const override;
+	virtual void get_public_annotations(List<MethodInfo> *p_annotations) const override;
 
 	virtual void profiling_start() override;
 	virtual void profiling_stop() override;
@@ -507,6 +536,8 @@ public:
 	void add_orphan_subclass(const String &p_qualified_name, const ObjectID &p_subclass);
 	Ref<GDScript> get_orphan_subclass(const String &p_qualified_name);
 
+	Ref<GDScript> get_script_by_fully_qualified_name(const String &p_name);
+
 	GDScriptLanguage();
 	~GDScriptLanguage();
 };
@@ -522,7 +553,7 @@ public:
 
 class ResourceFormatSaverGDScript : public ResourceFormatSaver {
 public:
-	virtual Error save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags = 0);
+	virtual Error save(const Ref<Resource> &p_resource, const String &p_path, uint32_t p_flags = 0);
 	virtual void get_recognized_extensions(const Ref<Resource> &p_resource, List<String> *p_extensions) const;
 	virtual bool recognize(const Ref<Resource> &p_resource) const;
 };

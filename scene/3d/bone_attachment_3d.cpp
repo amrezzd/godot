@@ -30,8 +30,8 @@
 
 #include "bone_attachment_3d.h"
 
-void BoneAttachment3D::_validate_property(PropertyInfo &property) const {
-	if (property.name == "bone_name") {
+void BoneAttachment3D::_validate_property(PropertyInfo &p_property) const {
+	if (p_property.name == "bone_name") {
 		// Because it is a constant function, we cannot use the _get_skeleton_3d function.
 		const Skeleton3D *parent = nullptr;
 		if (use_external_skeleton) {
@@ -51,15 +51,13 @@ void BoneAttachment3D::_validate_property(PropertyInfo &property) const {
 				names += parent->get_bone_name(i);
 			}
 
-			property.hint = PROPERTY_HINT_ENUM;
-			property.hint_string = names;
+			p_property.hint = PROPERTY_HINT_ENUM;
+			p_property.hint_string = names;
 		} else {
-			property.hint = PROPERTY_HINT_NONE;
-			property.hint_string = "";
+			p_property.hint = PROPERTY_HINT_NONE;
+			p_property.hint_string = "";
 		}
 	}
-
-	Node3D::_validate_property(property);
 }
 
 bool BoneAttachment3D::_set(const StringName &p_path, const Variant &p_value) {
@@ -93,7 +91,7 @@ bool BoneAttachment3D::_get(const StringName &p_path, Variant &r_ret) const {
 void BoneAttachment3D::_get_property_list(List<PropertyInfo> *p_list) const {
 	p_list->push_back(PropertyInfo(Variant::BOOL, "override_pose", PROPERTY_HINT_NONE, ""));
 	if (override_pose) {
-		p_list->push_back(PropertyInfo(Variant::INT, "override_mode", PROPERTY_HINT_ENUM, "Global Pose Override, Local Pose Override, Custom Pose"));
+		p_list->push_back(PropertyInfo(Variant::INT, "override_mode", PROPERTY_HINT_ENUM, "Global Pose Override,Local Pose Override,Custom Pose"));
 	}
 
 	p_list->push_back(PropertyInfo(Variant::BOOL, "use_external_skeleton", PROPERTY_HINT_NONE, ""));
@@ -102,8 +100,8 @@ void BoneAttachment3D::_get_property_list(List<PropertyInfo> *p_list) const {
 	}
 }
 
-TypedArray<String> BoneAttachment3D::get_configuration_warnings() const {
-	TypedArray<String> warnings = Node3D::get_configuration_warnings();
+PackedStringArray BoneAttachment3D::get_configuration_warnings() const {
+	PackedStringArray warnings = Node3D::get_configuration_warnings();
 
 	if (use_external_skeleton) {
 		if (external_skeleton_node_cache.is_null()) {
@@ -376,6 +374,24 @@ void BoneAttachment3D::on_bone_pose_update(int p_bone_index) {
 		}
 	}
 }
+#ifdef TOOLS_ENABLED
+void BoneAttachment3D::_notify_skeleton_bones_renamed(Node *p_base_scene, Skeleton3D *p_skeleton, Dictionary p_rename_map) {
+	const Skeleton3D *parent = nullptr;
+	if (use_external_skeleton) {
+		if (external_skeleton_node_cache.is_valid()) {
+			parent = Object::cast_to<Skeleton3D>(ObjectDB::get_instance(external_skeleton_node_cache));
+		}
+	} else {
+		parent = Object::cast_to<Skeleton3D>(get_parent());
+	}
+	if (parent && parent == p_skeleton) {
+		StringName bn = p_rename_map[bone_name];
+		if (bn) {
+			set_bone_name(bn);
+		}
+	}
+}
+#endif // TOOLS_ENABLED
 
 BoneAttachment3D::BoneAttachment3D() {
 }
@@ -398,6 +414,9 @@ void BoneAttachment3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_use_external_skeleton"), &BoneAttachment3D::get_use_external_skeleton);
 	ClassDB::bind_method(D_METHOD("set_external_skeleton", "external_skeleton"), &BoneAttachment3D::set_external_skeleton);
 	ClassDB::bind_method(D_METHOD("get_external_skeleton"), &BoneAttachment3D::get_external_skeleton);
+#ifdef TOOLS_ENABLED
+	ClassDB::bind_method(D_METHOD("_notify_skeleton_bones_renamed"), &BoneAttachment3D::_notify_skeleton_bones_renamed);
+#endif // TOOLS_ENABLED
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "bone_name"), "set_bone_name", "get_bone_name");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "bone_idx"), "set_bone_idx", "get_bone_idx");

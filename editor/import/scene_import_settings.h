@@ -74,6 +74,7 @@ class SceneImportSettings : public ConfirmationDialog {
 	SubViewport *base_viewport = nullptr;
 
 	Camera3D *camera = nullptr;
+	Ref<CameraAttributesPractical> camera_attributes;
 	bool first_aabb = false;
 	AABB contents_aabb;
 
@@ -191,7 +192,7 @@ class SceneImportSettings : public ConfirmationDialog {
 
 	bool editing_animation = false;
 
-	Timer *update_view_timer;
+	Timer *update_view_timer = nullptr;
 
 protected:
 	void _notification(int p_what);
@@ -201,6 +202,7 @@ public:
 	void update_view();
 	void open_settings(const String &p_path, bool p_for_animation = false);
 	static SceneImportSettings *get_singleton();
+	Node *get_selected_node();
 	SceneImportSettings();
 	~SceneImportSettings();
 };

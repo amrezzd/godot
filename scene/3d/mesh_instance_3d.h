@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef MESH_INSTANCE_H
-#define MESH_INSTANCE_H
+#ifndef MESH_INSTANCE_3D_H
+#define MESH_INSTANCE_3D_H
 
 #include "core/templates/local_vector.h"
 #include "scene/3d/visual_instance_3d.h"
@@ -57,6 +57,7 @@ protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	void _get_property_list(List<PropertyInfo> *p_list) const;
+	bool surface_index_0 = false;
 
 	void _notification(int p_what);
 	static void _bind_methods();
@@ -90,6 +91,7 @@ public:
 	Node *create_multiple_convex_collisions_node();
 	void create_multiple_convex_collisions();
 
+	MeshInstance3D *create_debug_tangents_node();
 	void create_debug_tangents();
 
 	virtual AABB get_aabb() const override;
@@ -98,4 +100,4 @@ public:
 	~MeshInstance3D();
 };
 
-#endif
+#endif // MESH_INSTANCE_3D_H

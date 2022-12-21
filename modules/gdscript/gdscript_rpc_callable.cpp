@@ -71,16 +71,16 @@ GDScriptRPCCallable::GDScriptRPCCallable(Object *p_object, const StringName &p_m
 	object = p_object;
 	method = p_method;
 	h = method.hash();
-	h = hash_djb2_one_64(object->get_instance_id(), h);
+	h = hash_murmur3_one_64(object->get_instance_id(), h);
 	node = Object::cast_to<Node>(object);
 	ERR_FAIL_COND_MSG(!node, "RPC can only be defined on class that extends Node.");
 }
 
-void GDScriptRPCCallable::rpc(int p_peer_id, const Variant **p_arguments, int p_argcount, Callable::CallError &r_call_error) const {
+Error GDScriptRPCCallable::rpc(int p_peer_id, const Variant **p_arguments, int p_argcount, Callable::CallError &r_call_error) const {
 	if (unlikely(!node)) {
 		r_call_error.error = Callable::CallError::CALL_ERROR_INSTANCE_IS_NULL;
-		return;
+		return ERR_UNCONFIGURED;
 	}
 	r_call_error.error = Callable::CallError::CALL_OK;
-	node->rpcp(p_peer_id, method, p_arguments, p_argcount);
+	return node->rpcp(p_peer_id, method, p_arguments, p_argcount);
 }

@@ -45,17 +45,27 @@ class Image;
 
 typedef Error (*SavePNGFunc)(const String &p_path, const Ref<Image> &p_img);
 typedef Vector<uint8_t> (*SavePNGBufferFunc)(const Ref<Image> &p_img);
+typedef Error (*SaveJPGFunc)(const String &p_path, const Ref<Image> &p_img, float p_quality);
+typedef Vector<uint8_t> (*SaveJPGBufferFunc)(const Ref<Image> &p_img, float p_quality);
 typedef Ref<Image> (*ImageMemLoadFunc)(const uint8_t *p_png, int p_size);
+typedef Error (*SaveWebPFunc)(const String &p_path, const Ref<Image> &p_img, const bool p_lossy, const float p_quality);
+typedef Vector<uint8_t> (*SaveWebPBufferFunc)(const Ref<Image> &p_img, const bool p_lossy, const float p_quality);
 
 typedef Error (*SaveEXRFunc)(const String &p_path, const Ref<Image> &p_img, bool p_grayscale);
+typedef Vector<uint8_t> (*SaveEXRBufferFunc)(const Ref<Image> &p_img, bool p_grayscale);
 
 class Image : public Resource {
 	GDCLASS(Image, Resource);
 
 public:
 	static SavePNGFunc save_png_func;
+	static SaveJPGFunc save_jpg_func;
 	static SaveEXRFunc save_exr_func;
 	static SavePNGBufferFunc save_png_buffer_func;
+	static SaveEXRBufferFunc save_exr_buffer_func;
+	static SaveJPGBufferFunc save_jpg_buffer_func;
+	static SaveWebPFunc save_webp_func;
+	static SaveWebPBufferFunc save_webp_buffer_func;
 
 	enum {
 		MAX_WIDTH = (1 << 24), // force a limit somehow
@@ -99,6 +109,10 @@ public:
 		FORMAT_ETC2_RGB8A1,
 		FORMAT_ETC2_RA_AS_RG, //used to make basis universal happy
 		FORMAT_DXT5_RA_AS_RG, //used to make basis universal happy
+		FORMAT_ASTC_4x4,
+		FORMAT_ASTC_4x4_HDR,
+		FORMAT_ASTC_8x8,
+		FORMAT_ASTC_8x8_HDR,
 		FORMAT_MAX
 	};
 
@@ -124,6 +138,11 @@ public:
 	};
 	//some functions provided by something else
 
+	enum ASTCFormat {
+		ASTC_FORMAT_4x4,
+		ASTC_FORMAT_8x8,
+	};
+
 	static ImageMemLoadFunc _png_mem_loader_func;
 	static ImageMemLoadFunc _jpg_mem_loader_func;
 	static ImageMemLoadFunc _webp_mem_loader_func;
@@ -134,11 +153,13 @@ public:
 	static void (*_image_compress_bptc_func)(Image *, float p_lossy_quality, UsedChannels p_channels);
 	static void (*_image_compress_etc1_func)(Image *, float);
 	static void (*_image_compress_etc2_func)(Image *, float, UsedChannels p_channels);
+	static void (*_image_compress_astc_func)(Image *, float, ASTCFormat p_format);
 
 	static void (*_image_decompress_bc)(Image *);
 	static void (*_image_decompress_bptc)(Image *);
 	static void (*_image_decompress_etc1)(Image *);
 	static void (*_image_decompress_etc2)(Image *);
+	static void (*_image_decompress_astc)(Image *);
 
 	static Vector<uint8_t> (*webp_lossy_packer)(const Ref<Image> &p_image, float p_quality);
 	static Vector<uint8_t> (*webp_lossless_packer)(const Ref<Image> &p_image);
@@ -199,7 +220,7 @@ private:
 public:
 	int get_width() const; ///< Get image width
 	int get_height() const; ///< Get image height
-	Vector2 get_size() const;
+	Size2i get_size() const;
 	bool has_mipmaps() const;
 	int get_mipmap_count() const;
 
@@ -244,6 +265,9 @@ public:
 	void crop_from_point(int p_x, int p_y, int p_width, int p_height);
 	void crop(int p_width, int p_height);
 
+	void rotate_90(ClockDirection p_direction);
+	void rotate_180();
+
 	void flip_x();
 	void flip_y();
 
@@ -266,12 +290,12 @@ public:
 	void normalize(); //for normal maps
 
 	/**
-	 * Create a new image of a given size and format. Current image will be lost
+	 * Creates new internal image data of a given size and format. Current image will be lost.
 	 */
-	void create(int p_width, int p_height, bool p_use_mipmaps, Format p_format);
-	void create(int p_width, int p_height, bool p_use_mipmaps, Format p_format, const Vector<uint8_t> &p_data);
+	void initialize_data(int p_width, int p_height, bool p_use_mipmaps, Format p_format);
+	void initialize_data(int p_width, int p_height, bool p_use_mipmaps, Format p_format, const Vector<uint8_t> &p_data);
+	void initialize_data(const char **p_xpm);
 
-	void create(const char **p_xpm);
 	/**
 	 * returns true when the image is empty (0,0) in size
 	 */
@@ -280,17 +304,19 @@ public:
 	Vector<uint8_t> get_data() const;
 
 	Error load(const String &p_path);
+	static Ref<Image> load_from_file(const String &p_path);
 	Error save_png(const String &p_path) const;
+	Error save_jpg(const String &p_path, float p_quality = 0.75) const;
 	Vector<uint8_t> save_png_to_buffer() const;
+	Vector<uint8_t> save_jpg_to_buffer(float p_quality = 0.75) const;
+	Vector<uint8_t> save_exr_to_buffer(bool p_grayscale) const;
 	Error save_exr(const String &p_path, bool p_grayscale) const;
+	Error save_webp(const String &p_path, const bool p_lossy = false, const float p_quality = 0.75f) const;
+	Vector<uint8_t> save_webp_to_buffer(const bool p_lossy = false, const float p_quality = 0.75f) const;
 
-	void create_empty(int p_width, int p_height, bool p_use_mipmaps, Format p_format) {
-		create(p_width, p_height, p_use_mipmaps, p_format);
-	}
-
-	void create_from_data(int p_width, int p_height, bool p_use_mipmaps, Format p_format, const Vector<uint8_t> &p_data) {
-		create(p_width, p_height, p_use_mipmaps, p_format, p_data);
-	}
+	static Ref<Image> create_empty(int p_width, int p_height, bool p_use_mipmaps, Format p_format);
+	static Ref<Image> create_from_data(int p_width, int p_height, bool p_use_mipmaps, Format p_format, const Vector<uint8_t> &p_data);
+	void set_data(int p_width, int p_height, bool p_use_mipmaps, Format p_format, const Vector<uint8_t> &p_data);
 
 	/**
 	 * create an empty image
@@ -332,6 +358,7 @@ public:
 		COMPRESS_ETC,
 		COMPRESS_ETC2,
 		COMPRESS_BPTC,
+		COMPRESS_ASTC,
 		COMPRESS_MAX,
 	};
 	enum CompressSource {
@@ -341,8 +368,8 @@ public:
 		COMPRESS_SOURCE_MAX,
 	};
 
-	Error compress(CompressMode p_mode, CompressSource p_source = COMPRESS_SOURCE_GENERIC, float p_lossy_quality = 0.7);
-	Error compress_from_channels(CompressMode p_mode, UsedChannels p_channels, float p_lossy_quality = 0.7);
+	Error compress(CompressMode p_mode, CompressSource p_source = COMPRESS_SOURCE_GENERIC, float p_lossy_quality = 0.7, ASTCFormat p_astc_format = ASTC_FORMAT_4x4);
+	Error compress_from_channels(CompressMode p_mode, UsedChannels p_channels, float p_lossy_quality = 0.7, ASTCFormat p_astc_format = ASTC_FORMAT_4x4);
 	Error decompress();
 	bool is_compressed() const;
 
@@ -354,15 +381,15 @@ public:
 	Ref<Image> get_image_from_mipmap(int p_mipamp) const;
 	void bump_map_to_normal_map(float bump_scale = 1.0);
 
-	void blit_rect(const Ref<Image> &p_src, const Rect2 &p_src_rect, const Point2 &p_dest);
-	void blit_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2 &p_src_rect, const Point2 &p_dest);
-	void blend_rect(const Ref<Image> &p_src, const Rect2 &p_src_rect, const Point2 &p_dest);
-	void blend_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2 &p_src_rect, const Point2 &p_dest);
+	void blit_rect(const Ref<Image> &p_src, const Rect2i &p_src_rect, const Point2i &p_dest);
+	void blit_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2i &p_src_rect, const Point2i &p_dest);
+	void blend_rect(const Ref<Image> &p_src, const Rect2i &p_src_rect, const Point2i &p_dest);
+	void blend_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2i &p_src_rect, const Point2i &p_dest);
 	void fill(const Color &p_color);
-	void fill_rect(const Rect2 &p_rect, const Color &p_color);
+	void fill_rect(const Rect2i &p_rect, const Color &p_color);
 
-	Rect2 get_used_rect() const;
-	Ref<Image> get_rect(const Rect2 &p_area) const;
+	Rect2i get_used_rect() const;
+	Ref<Image> get_region(const Rect2i &p_area) const;
 
 	static void set_compress_bc_func(void (*p_compress_func)(Image *, float, UsedChannels));
 	static void set_compress_bptc_func(void (*p_compress_func)(Image *, float, UsedChannels));
@@ -376,6 +403,7 @@ public:
 
 	void convert_rg_to_ra_rgba8();
 	void convert_ra_rgba8_to_rg();
+	void convert_rgba8_to_bgra8();
 
 	Image(const uint8_t *p_mem_png_jpg, int p_len = -1);
 	Image(const char **p_xpm);
@@ -413,5 +441,6 @@ VARIANT_ENUM_CAST(Image::CompressSource)
 VARIANT_ENUM_CAST(Image::UsedChannels)
 VARIANT_ENUM_CAST(Image::AlphaMode)
 VARIANT_ENUM_CAST(Image::RoughnessChannel)
+VARIANT_ENUM_CAST(Image::ASTCFormat)
 
 #endif // IMAGE_H

@@ -31,15 +31,18 @@
 #ifndef AUDIO_STREAM_EDITOR_PLUGIN_H
 #define AUDIO_STREAM_EDITOR_PLUGIN_H
 
+#include "editor/editor_inspector.h"
 #include "editor/editor_plugin.h"
 #include "scene/audio/audio_stream_player.h"
+#include "scene/gui/button.h"
 #include "scene/gui/color_rect.h"
-#include "scene/resources/texture.h"
+#include "scene/gui/label.h"
 
 class AudioStreamEditor : public ColorRect {
 	GDCLASS(AudioStreamEditor, ColorRect);
 
 	Ref<AudioStream> stream;
+
 	AudioStreamPlayer *_player = nullptr;
 	ColorRect *_preview = nullptr;
 	Control *_indicator = nullptr;
@@ -53,8 +56,6 @@ class AudioStreamEditor : public ColorRect {
 	bool _dragging = false;
 	bool _pausing = false;
 
-	void _audio_changed();
-
 protected:
 	void _notification(int p_what);
 	void _preview_changed(ObjectID p_which);
@@ -65,27 +66,28 @@ protected:
 	void _draw_indicator();
 	void _on_input_indicator(Ref<InputEvent> p_event);
 	void _seek_to(real_t p_x);
-	static void _bind_methods();
+	void _stream_changed();
 
 public:
-	void edit(Ref<AudioStream> p_stream);
+	void set_stream(const Ref<AudioStream> &p_stream);
+
 	AudioStreamEditor();
+};
+
+class EditorInspectorPluginAudioStream : public EditorInspectorPlugin {
+	GDCLASS(EditorInspectorPluginAudioStream, EditorInspectorPlugin);
+	AudioStreamEditor *editor = nullptr;
+
+public:
+	virtual bool can_handle(Object *p_object) override;
+	virtual void parse_begin(Object *p_object) override;
 };
 
 class AudioStreamEditorPlugin : public EditorPlugin {
 	GDCLASS(AudioStreamEditorPlugin, EditorPlugin);
 
-	AudioStreamEditor *audio_editor = nullptr;
-
 public:
-	virtual String get_name() const override { return "Audio"; }
-	bool has_main_screen() const override { return false; }
-	virtual void edit(Object *p_object) override;
-	virtual bool handles(Object *p_object) const override;
-	virtual void make_visible(bool p_visible) override;
-
 	AudioStreamEditorPlugin();
-	~AudioStreamEditorPlugin();
 };
 
 #endif // AUDIO_STREAM_EDITOR_PLUGIN_H

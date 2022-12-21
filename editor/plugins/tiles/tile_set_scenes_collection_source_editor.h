@@ -37,8 +37,6 @@
 #include "scene/gui/item_list.h"
 #include "scene/resources/tile_set.h"
 
-class UndoRedo;
-
 class TileSetScenesCollectionSourceEditor : public HBoxContainer {
 	GDCLASS(TileSetScenesCollectionSourceEditor, HBoxContainer);
 
@@ -97,8 +95,6 @@ private:
 	TileSetScenesCollectionSource *tile_set_scenes_collection_source = nullptr;
 	int tile_set_source_id = -1;
 
-	UndoRedo *undo_redo = nullptr;
-
 	bool tile_set_scenes_collection_source_changed_needs_update = false;
 
 	// Source inspector.
@@ -142,4 +138,4 @@ public:
 	~TileSetScenesCollectionSourceEditor();
 };
 
-#endif
+#endif // TILE_SET_SCENES_COLLECTION_SOURCE_EDITOR_H

@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef SKELETONMODIFICATION2DFABRIK_H
-#define SKELETONMODIFICATION2DFABRIK_H
+#ifndef SKELETON_MODIFICATION_2D_FABRIK_H
+#define SKELETON_MODIFICATION_2D_FABRIK_H
 
 #include "scene/2d/skeleton_2d.h"
 #include "scene/resources/skeleton_modification_2d.h"
@@ -68,8 +68,8 @@ private:
 	float chain_tolarance = 0.01;
 	int chain_max_iterations = 10;
 	int chain_iterations = 0;
-	Transform2D target_global_pose = Transform2D();
-	Transform2D origin_global_pose = Transform2D();
+	Transform2D target_global_pose;
+	Transform2D origin_global_pose;
 
 	void fabrik_joint_update_bone2d_cache(int p_joint_idx);
 	void chain_backwards();
@@ -105,4 +105,4 @@ public:
 	~SkeletonModification2DFABRIK();
 };
 
-#endif // SKELETONMODIFICATION2DFABRIK_H
+#endif // SKELETON_MODIFICATION_2D_FABRIK_H

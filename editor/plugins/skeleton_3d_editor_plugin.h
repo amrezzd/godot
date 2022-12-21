@@ -31,6 +31,7 @@
 #ifndef SKELETON_3D_EDITOR_PLUGIN_H
 #define SKELETON_3D_EDITOR_PLUGIN_H
 
+#include "editor/editor_file_dialog.h"
 #include "editor/editor_plugin.h"
 #include "editor/editor_properties.h"
 #include "node_3d_editor_plugin.h"
@@ -44,6 +45,9 @@ class Joint;
 class PhysicalBone3D;
 class Skeleton3DEditorPlugin;
 class Button;
+class Tree;
+class TreeItem;
+class VSeparator;
 
 class BoneTransformEditor : public VBoxContainer {
 	GDCLASS(BoneTransformEditor, VBoxContainer);
@@ -62,8 +66,6 @@ class BoneTransformEditor : public VBoxContainer {
 
 	Skeleton3D *skeleton = nullptr;
 	// String property;
-
-	UndoRedo *undo_redo = nullptr;
 
 	bool toggle_enabled = false;
 	bool updating = false;
@@ -96,11 +98,12 @@ class Skeleton3DEditor : public VBoxContainer {
 	friend class Skeleton3DEditorPlugin;
 
 	enum SkeletonOption {
-		SKELETON_OPTION_INIT_ALL_POSES,
-		SKELETON_OPTION_INIT_SELECTED_POSES,
+		SKELETON_OPTION_RESET_ALL_POSES,
+		SKELETON_OPTION_RESET_SELECTED_POSES,
 		SKELETON_OPTION_ALL_POSES_TO_RESTS,
 		SKELETON_OPTION_SELECTED_POSES_TO_RESTS,
 		SKELETON_OPTION_CREATE_PHYSICAL_SKELETON,
+		SKELETON_OPTION_EXPORT_SKELETON_PROFILE,
 	};
 
 	struct BoneInfo {
@@ -147,13 +150,15 @@ class Skeleton3DEditor : public VBoxContainer {
 
 	void create_editors();
 
-	void init_pose(const bool p_all_bones);
+	void reset_pose(const bool p_all_bones);
 	void pose_to_rest(const bool p_all_bones);
 
 	void insert_keys(const bool p_all_bones);
 
 	void create_physical_skeleton();
 	PhysicalBone3D *create_physical_bone(int bone_id, int bone_child_id, const Vector<BoneInfo> &bones_infos);
+
+	void export_skeleton_profile();
 
 	Variant get_drag_data_fw(const Point2 &p_point, Control *p_from);
 	bool can_drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) const;
@@ -233,7 +238,7 @@ class Skeleton3DEditorPlugin : public EditorPlugin {
 	EditorInspectorPluginSkeleton *skeleton_plugin = nullptr;
 
 public:
-	virtual EditorPlugin::AfterGUIInput forward_spatial_gui_input(Camera3D *p_camera, const Ref<InputEvent> &p_event) override;
+	virtual EditorPlugin::AfterGUIInput forward_3d_gui_input(Camera3D *p_camera, const Ref<InputEvent> &p_event) override;
 
 	bool has_main_screen() const override { return false; }
 	virtual bool handles(Object *p_object) const override;

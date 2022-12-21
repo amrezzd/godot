@@ -65,7 +65,7 @@ int sfind(const String &p_text, int p_from) {
 					break;
 				case 1: {
 					char32_t c = src[read_pos];
-					found = src[read_pos] == 's' || (c >= '0' && c <= '4');
+					found = src[read_pos] == 's' || (c >= '0' && c <= '5');
 					break;
 				}
 				default:
@@ -86,32 +86,13 @@ int sfind(const String &p_text, int p_from) {
 }
 } // namespace
 
-String sformat(const String &p_text, const Variant &p1, const Variant &p2, const Variant &p3, const Variant &p4, const Variant &p5) {
+String sformat(const String &p_text, const String &p1, const String &p2,
+		const String &p3, const String &p4, const String &p5, const String &p6) {
 	if (p_text.length() < 2) {
 		return p_text;
 	}
 
-	Array args;
-
-	if (p1.get_type() != Variant::NIL) {
-		args.push_back(p1);
-
-		if (p2.get_type() != Variant::NIL) {
-			args.push_back(p2);
-
-			if (p3.get_type() != Variant::NIL) {
-				args.push_back(p3);
-
-				if (p4.get_type() != Variant::NIL) {
-					args.push_back(p4);
-
-					if (p5.get_type() != Variant::NIL) {
-						args.push_back(p5);
-					}
-				}
-			}
-		}
-	}
+	String args[6] = { p1, p2, p3, p4, p5, p6 };
 
 	String new_string;
 
@@ -125,7 +106,7 @@ String sformat(const String &p_text, const Variant &p1, const Variant &p2, const
 		int req_index = (c == 's' ? findex++ : c - '0');
 
 		new_string += p_text.substr(search_from, result - search_from);
-		new_string += args[req_index].operator String();
+		new_string += args[req_index];
 		search_from = result + 2;
 	}
 
@@ -145,7 +126,7 @@ bool is_csharp_keyword(const String &p_name) {
 			p_name == "do" || p_name == "double" || p_name == "else" || p_name == "enum" ||
 			p_name == "event" || p_name == "explicit" || p_name == "extern" || p_name == "false" ||
 			p_name == "finally" || p_name == "fixed" || p_name == "float" || p_name == "for" ||
-			p_name == "forech" || p_name == "goto" || p_name == "if" || p_name == "implicit" ||
+			p_name == "foreach" || p_name == "goto" || p_name == "if" || p_name == "implicit" ||
 			p_name == "in" || p_name == "int" || p_name == "interface" || p_name == "internal" ||
 			p_name == "is" || p_name == "lock" || p_name == "long" || p_name == "namespace" ||
 			p_name == "new" || p_name == "null" || p_name == "object" || p_name == "operator" ||
@@ -178,7 +159,7 @@ Error read_all_file_utf8(const String &p_path, String &r_content) {
 	w[len] = 0;
 
 	String source;
-	if (source.parse_utf8((const char *)w)) {
+	if (source.parse_utf8((const char *)w) != OK) {
 		ERR_FAIL_V(ERR_INVALID_DATA);
 	}
 

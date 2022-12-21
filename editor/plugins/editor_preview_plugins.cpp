@@ -93,7 +93,7 @@ Ref<Texture2D> EditorTexturePreviewPlugin::generate(const Ref<Resource> &p_from,
 			return Ref<Texture2D>();
 		}
 
-		img = atlas->get_rect(atex->get_region());
+		img = atlas->get_region(atex->get_region());
 	} else {
 		Ref<Texture2D> tex = p_from;
 		if (tex.is_valid()) {
@@ -127,13 +127,9 @@ Ref<Texture2D> EditorTexturePreviewPlugin::generate(const Ref<Resource> &p_from,
 	}
 	Vector2i new_size_i(MAX(1, (int)new_size.x), MAX(1, (int)new_size.y));
 	img->resize(new_size_i.x, new_size_i.y, Image::INTERPOLATE_CUBIC);
-
 	post_process_preview(img);
 
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-
-	ptex->create_from_image(img);
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 EditorTexturePreviewPlugin::EditorTexturePreviewPlugin() {
@@ -171,14 +167,9 @@ Ref<Texture2D> EditorImagePreviewPlugin::generate(const Ref<Resource> &p_from, c
 		new_size = Vector2(new_size.x * p_size.y / new_size.y, p_size.y);
 	}
 	img->resize(new_size.x, new_size.y, Image::INTERPOLATE_CUBIC);
-
 	post_process_preview(img);
 
-	Ref<ImageTexture> ptex;
-	ptex.instantiate();
-
-	ptex->create_from_image(img);
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 EditorImagePreviewPlugin::EditorImagePreviewPlugin() {
@@ -210,7 +201,7 @@ Ref<Texture2D> EditorBitmapPreviewPlugin::generate(const Ref<Resource> &p_from, 
 
 		for (int i = 0; i < bm->get_size().width; i++) {
 			for (int j = 0; j < bm->get_size().height; j++) {
-				if (bm->get_bit(Point2i(i, j))) {
+				if (bm->get_bit(i, j)) {
 					w[j * (int)bm->get_size().width + i] = 255;
 				} else {
 					w[j * (int)bm->get_size().width + i] = 0;
@@ -219,9 +210,7 @@ Ref<Texture2D> EditorBitmapPreviewPlugin::generate(const Ref<Resource> &p_from, 
 		}
 	}
 
-	Ref<Image> img;
-	img.instantiate();
-	img->create(bm->get_size().width, bm->get_size().height, false, Image::FORMAT_L8, data);
+	Ref<Image> img = Image::create_from_data(bm->get_size().width, bm->get_size().height, false, Image::FORMAT_L8, data);
 
 	if (img->is_compressed()) {
 		if (img->decompress() != OK) {
@@ -239,13 +228,9 @@ Ref<Texture2D> EditorBitmapPreviewPlugin::generate(const Ref<Resource> &p_from, 
 		new_size = Vector2(new_size.x * p_size.y / new_size.y, p_size.y);
 	}
 	img->resize(new_size.x, new_size.y, Image::INTERPOLATE_CUBIC);
-
 	post_process_preview(img);
 
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-
-	ptex->create_from_image(img);
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 bool EditorBitmapPreviewPlugin::generate_small_preview_automatically() const {
@@ -268,7 +253,7 @@ Ref<Texture2D> EditorPackedScenePreviewPlugin::generate(const Ref<Resource> &p_f
 Ref<Texture2D> EditorPackedScenePreviewPlugin::generate_from_path(const String &p_path, const Size2 &p_size) const {
 	String temp_path = EditorPaths::get_singleton()->get_cache_dir();
 	String cache_base = ProjectSettings::get_singleton()->globalize_path(p_path).md5_text();
-	cache_base = temp_path.plus_file("resthumb-" + cache_base);
+	cache_base = temp_path.path_join("resthumb-" + cache_base);
 
 	//does not have it, try to load a cached thumbnail
 
@@ -282,11 +267,8 @@ Ref<Texture2D> EditorPackedScenePreviewPlugin::generate_from_path(const String &
 	img.instantiate();
 	Error err = img->load(path);
 	if (err == OK) {
-		Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-
 		post_process_preview(img);
-		ptex->create_from_image(img);
-		return ptex;
+		return ImageTexture::create_from_image(img);
 
 	} else {
 		return Ref<Texture2D>();
@@ -323,7 +305,7 @@ Ref<Texture2D> EditorMaterialPreviewPlugin::generate(const Ref<Resource> &p_from
 	if (material->get_shader_mode() == Shader::MODE_SPATIAL) {
 		RS::get_singleton()->mesh_surface_set_material(sphere, 0, material->get_rid());
 
-		RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorMaterialPreviewPlugin *>(this), &EditorMaterialPreviewPlugin::_generate_frame_started), Vector<Variant>(), Object::CONNECT_ONESHOT);
+		RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorMaterialPreviewPlugin *>(this), &EditorMaterialPreviewPlugin::_generate_frame_started), Object::CONNECT_ONE_SHOT);
 
 		preview_done.wait();
 
@@ -336,9 +318,7 @@ Ref<Texture2D> EditorMaterialPreviewPlugin::generate(const Ref<Resource> &p_from
 		int thumbnail_size = MAX(p_size.x, p_size.y);
 		img->resize(thumbnail_size, thumbnail_size, Image::INTERPOLATE_CUBIC);
 		post_process_preview(img);
-		Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-		ptex->create_from_image(img);
-		return ptex;
+		return ImageTexture::create_from_image(img);
 	}
 
 	return Ref<Texture2D>();
@@ -359,6 +339,12 @@ EditorMaterialPreviewPlugin::EditorMaterialPreviewPlugin() {
 	RS::get_singleton()->viewport_attach_camera(viewport, camera);
 	RS::get_singleton()->camera_set_transform(camera, Transform3D(Basis(), Vector3(0, 0, 3)));
 	RS::get_singleton()->camera_set_perspective(camera, 45, 0.1, 10);
+
+	if (GLOBAL_GET("rendering/lights_and_shadows/use_physical_light_units")) {
+		camera_attributes = RS::get_singleton()->camera_attributes_create();
+		RS::get_singleton()->camera_attributes_set_exposure(camera_attributes, 1.0, 0.000032552); // Matches default CameraAttributesPhysical to work well with default DirectionalLight3Ds.
+		RS::get_singleton()->camera_set_camera_attributes(camera, camera_attributes);
+	}
 
 	light = RS::get_singleton()->directional_light_create();
 	light_instance = RS::get_singleton()->instance_create2(light, scenario);
@@ -458,6 +444,7 @@ EditorMaterialPreviewPlugin::~EditorMaterialPreviewPlugin() {
 	RS::get_singleton()->free(light2);
 	RS::get_singleton()->free(light_instance2);
 	RS::get_singleton()->free(camera);
+	RS::get_singleton()->free(camera_attributes);
 	RS::get_singleton()->free(scenario);
 }
 
@@ -494,17 +481,15 @@ Ref<Texture2D> EditorScriptPreviewPlugin::generate(const Ref<Resource> &p_from, 
 
 	int line = 0;
 	int col = 0;
-	Ref<Image> img;
-	img.instantiate();
 	int thumbnail_size = MAX(p_size.x, p_size.y);
-	img->create(thumbnail_size, thumbnail_size, false, Image::FORMAT_RGBA8);
+	Ref<Image> img = Image::create_empty(thumbnail_size, thumbnail_size, false, Image::FORMAT_RGBA8);
 
-	Color bg_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/background_color");
-	Color keyword_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/keyword_color");
-	Color control_flow_keyword_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/control_flow_keyword_color");
-	Color text_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/text_color");
-	Color symbol_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/symbol_color");
-	Color comment_color = EditorSettings::get_singleton()->get("text_editor/theme/highlighting/comment_color");
+	Color bg_color = EDITOR_GET("text_editor/theme/highlighting/background_color");
+	Color keyword_color = EDITOR_GET("text_editor/theme/highlighting/keyword_color");
+	Color control_flow_keyword_color = EDITOR_GET("text_editor/theme/highlighting/control_flow_keyword_color");
+	Color text_color = EDITOR_GET("text_editor/theme/highlighting/text_color");
+	Color symbol_color = EDITOR_GET("text_editor/theme/highlighting/symbol_color");
+	Color comment_color = EDITOR_GET("text_editor/theme/highlighting/comment_color");
 
 	if (bg_color.a == 0) {
 		bg_color = Color(0, 0, 0, 0);
@@ -591,13 +576,8 @@ Ref<Texture2D> EditorScriptPreviewPlugin::generate(const Ref<Resource> &p_from, 
 			}
 		}
 	}
-
 	post_process_preview(img);
-
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-
-	ptex->create_from_image(img);
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 EditorScriptPreviewPlugin::EditorScriptPreviewPlugin() {
@@ -622,7 +602,7 @@ Ref<Texture2D> EditorAudioStreamPreviewPlugin::generate(const Ref<Resource> &p_f
 	uint8_t *imgdata = img.ptrw();
 	uint8_t *imgw = imgdata;
 
-	Ref<AudioStreamPlayback> playback = stream->instance_playback();
+	Ref<AudioStreamPlayback> playback = stream->instantiate_playback();
 	ERR_FAIL_COND_V(playback.is_null(), Ref<Texture2D>());
 
 	real_t len_s = stream->get_length();
@@ -676,12 +656,8 @@ Ref<Texture2D> EditorAudioStreamPreviewPlugin::generate(const Ref<Resource> &p_f
 
 	//post_process_preview(img);
 
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-	Ref<Image> image;
-	image.instantiate();
-	image->create(w, h, false, Image::FORMAT_RGB8, img);
-	ptex->create_from_image(image);
-	return ptex;
+	Ref<Image> image = Image::create_from_data(w, h, false, Image::FORMAT_RGB8, img);
+	return ImageTexture::create_from_image(image);
 }
 
 EditorAudioStreamPreviewPlugin::EditorAudioStreamPreviewPlugin() {
@@ -727,7 +703,7 @@ Ref<Texture2D> EditorMeshPreviewPlugin::generate(const Ref<Resource> &p_from, co
 	xform.origin.z -= rot_aabb.size.z * 2;
 	RS::get_singleton()->instance_set_transform(mesh_instance, xform);
 
-	RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorMeshPreviewPlugin *>(this), &EditorMeshPreviewPlugin::_generate_frame_started), Vector<Variant>(), Object::CONNECT_ONESHOT);
+	RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorMeshPreviewPlugin *>(this), &EditorMeshPreviewPlugin::_generate_frame_started), Object::CONNECT_ONE_SHOT);
 
 	preview_done.wait();
 
@@ -746,12 +722,9 @@ Ref<Texture2D> EditorMeshPreviewPlugin::generate(const Ref<Resource> &p_from, co
 		new_size = Vector2(new_size.x * p_size.y / new_size.y, p_size.y);
 	}
 	img->resize(new_size.x, new_size.y, Image::INTERPOLATE_CUBIC);
-
 	post_process_preview(img);
 
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-	ptex->create_from_image(img);
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 EditorMeshPreviewPlugin::EditorMeshPreviewPlugin() {
@@ -770,6 +743,12 @@ EditorMeshPreviewPlugin::EditorMeshPreviewPlugin() {
 	RS::get_singleton()->camera_set_transform(camera, Transform3D(Basis(), Vector3(0, 0, 3)));
 	//RS::get_singleton()->camera_set_perspective(camera,45,0.1,10);
 	RS::get_singleton()->camera_set_orthogonal(camera, 1.0, 0.01, 1000.0);
+
+	if (GLOBAL_GET("rendering/lights_and_shadows/use_physical_light_units")) {
+		camera_attributes = RS::get_singleton()->camera_attributes_create();
+		RS::get_singleton()->camera_attributes_set_exposure(camera_attributes, 1.0, 0.000032552); // Matches default CameraAttributesPhysical to work well with default DirectionalLight3Ds.
+		RS::get_singleton()->camera_set_camera_attributes(camera, camera_attributes);
+	}
 
 	light = RS::get_singleton()->directional_light_create();
 	light_instance = RS::get_singleton()->instance_create2(light, scenario);
@@ -796,6 +775,7 @@ EditorMeshPreviewPlugin::~EditorMeshPreviewPlugin() {
 	RS::get_singleton()->free(light2);
 	RS::get_singleton()->free(light_instance2);
 	RS::get_singleton()->free(camera);
+	RS::get_singleton()->free(camera_attributes);
 	RS::get_singleton()->free(scenario);
 }
 
@@ -812,19 +792,12 @@ void EditorFontPreviewPlugin::_preview_done() {
 }
 
 bool EditorFontPreviewPlugin::handles(const String &p_type) const {
-	return ClassDB::is_parent_class(p_type, "FontData") || ClassDB::is_parent_class(p_type, "Font");
+	return ClassDB::is_parent_class(p_type, "Font");
 }
 
 Ref<Texture2D> EditorFontPreviewPlugin::generate_from_path(const String &p_path, const Size2 &p_size) const {
-	Ref<Resource> res = ResourceLoader::load(p_path);
-	ERR_FAIL_COND_V(res.is_null(), Ref<Texture2D>());
-	Ref<Font> sampled_font;
-	if (res->is_class("Font")) {
-		sampled_font = res->duplicate();
-	} else if (res->is_class("FontData")) {
-		sampled_font.instantiate();
-		sampled_font->add_data(res->duplicate());
-	}
+	Ref<Font> sampled_font = ResourceLoader::load(p_path);
+	ERR_FAIL_COND_V(sampled_font.is_null(), Ref<Texture2D>());
 
 	String sample;
 	static const String sample_base = U"12漢字ԱբΑαАбΑαאבابܐܒހށआআਆઆଆஆఆಆആආกิກິༀကႠა한글ሀᎣᐁᚁᚠᜀᜠᝀᝠកᠠᤁᥐAb😀";
@@ -836,20 +809,18 @@ Ref<Texture2D> EditorFontPreviewPlugin::generate_from_path(const String &p_path,
 	if (sample.is_empty()) {
 		sample = sampled_font->get_supported_chars().substr(0, 6);
 	}
-	Vector2 size = sampled_font->get_string_size(sample, 50);
+	Vector2 size = sampled_font->get_string_size(sample, HORIZONTAL_ALIGNMENT_LEFT, -1, 50);
 
 	Vector2 pos;
 
 	pos.x = 64 - size.x / 2;
 	pos.y = 80;
 
-	Ref<Font> font = sampled_font;
-
 	const Color c = GLOBAL_GET("rendering/environment/defaults/default_clear_color");
 	const float fg = c.get_luminance() < 0.5 ? 1.0 : 0.0;
-	font->draw_string(canvas_item, pos, sample, HORIZONTAL_ALIGNMENT_LEFT, -1.f, 50, Color(fg, fg, fg));
+	sampled_font->draw_string(canvas_item, pos, sample, HORIZONTAL_ALIGNMENT_LEFT, -1.f, 50, Color(fg, fg, fg));
 
-	RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorFontPreviewPlugin *>(this), &EditorFontPreviewPlugin::_generate_frame_started), Vector<Variant>(), Object::CONNECT_ONESHOT);
+	RS::get_singleton()->connect(SNAME("frame_pre_draw"), callable_mp(const_cast<EditorFontPreviewPlugin *>(this), &EditorFontPreviewPlugin::_generate_frame_started), Object::CONNECT_ONE_SHOT);
 
 	preview_done.wait();
 
@@ -868,13 +839,9 @@ Ref<Texture2D> EditorFontPreviewPlugin::generate_from_path(const String &p_path,
 		new_size = Vector2(new_size.x * p_size.y / new_size.y, p_size.y);
 	}
 	img->resize(new_size.x, new_size.y, Image::INTERPOLATE_CUBIC);
-
 	post_process_preview(img);
 
-	Ref<ImageTexture> ptex = Ref<ImageTexture>(memnew(ImageTexture));
-	ptex->create_from_image(img);
-
-	return ptex;
+	return ImageTexture::create_from_image(img);
 }
 
 Ref<Texture2D> EditorFontPreviewPlugin::generate(const Ref<Resource> &p_from, const Size2 &p_size) const {
@@ -924,11 +891,7 @@ Ref<Texture2D> EditorGradientPreviewPlugin::generate(const Ref<Resource> &p_from
 		ptex.instantiate();
 		ptex->set_width(p_size.width * GRADIENT_PREVIEW_TEXTURE_SCALE_FACTOR * EDSCALE);
 		ptex->set_gradient(gradient);
-
-		Ref<ImageTexture> itex;
-		itex.instantiate();
-		itex->create_from_image(ptex->get_image());
-		return itex;
+		return ImageTexture::create_from_image(ptex->get_image());
 	}
 	return Ref<Texture2D>();
 }

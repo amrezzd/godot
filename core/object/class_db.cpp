@@ -31,6 +31,7 @@
 #include "class_db.h"
 
 #include "core/config/engine.h"
+#include "core/object/script_language.h"
 #include "core/os/mutex.h"
 #include "core/version.h"
 
@@ -164,7 +165,7 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 	OBJTYPE_RLOCK;
 #ifdef DEBUG_METHODS_ENABLED
 
-	uint64_t hash = hash_djb2_one_64(HashMapHasherDefault::hash(VERSION_FULL_CONFIG));
+	uint64_t hash = hash_murmur3_one_64(HashMapHasherDefault::hash(VERSION_FULL_CONFIG));
 
 	List<StringName> class_list;
 	ClassDB::get_class_list(&class_list);
@@ -177,8 +178,8 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 		if (t->api != p_api || !t->exposed) {
 			continue;
 		}
-		hash = hash_djb2_one_64(t->name.hash(), hash);
-		hash = hash_djb2_one_64(t->inherits.hash(), hash);
+		hash = hash_murmur3_one_64(t->name.hash(), hash);
+		hash = hash_murmur3_one_64(t->inherits.hash(), hash);
 
 		{ //methods
 
@@ -200,27 +201,27 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 
 			for (const StringName &F : snames) {
 				MethodBind *mb = t->method_map[F];
-				hash = hash_djb2_one_64(mb->get_name().hash(), hash);
-				hash = hash_djb2_one_64(mb->get_argument_count(), hash);
-				hash = hash_djb2_one_64(mb->get_argument_type(-1), hash); //return
+				hash = hash_murmur3_one_64(mb->get_name().hash(), hash);
+				hash = hash_murmur3_one_64(mb->get_argument_count(), hash);
+				hash = hash_murmur3_one_64(mb->get_argument_type(-1), hash); //return
 
 				for (int i = 0; i < mb->get_argument_count(); i++) {
 					const PropertyInfo info = mb->get_argument_info(i);
-					hash = hash_djb2_one_64(info.type, hash);
-					hash = hash_djb2_one_64(info.name.hash(), hash);
-					hash = hash_djb2_one_64(info.hint, hash);
-					hash = hash_djb2_one_64(info.hint_string.hash(), hash);
+					hash = hash_murmur3_one_64(info.type, hash);
+					hash = hash_murmur3_one_64(info.name.hash(), hash);
+					hash = hash_murmur3_one_64(info.hint, hash);
+					hash = hash_murmur3_one_64(info.hint_string.hash(), hash);
 				}
 
-				hash = hash_djb2_one_64(mb->get_default_argument_count(), hash);
+				hash = hash_murmur3_one_64(mb->get_default_argument_count(), hash);
 
 				for (int i = 0; i < mb->get_default_argument_count(); i++) {
 					//hash should not change, i hope for tis
 					Variant da = mb->get_default_argument(i);
-					hash = hash_djb2_one_64(da.hash(), hash);
+					hash = hash_murmur3_one_64(da.hash(), hash);
 				}
 
-				hash = hash_djb2_one_64(mb->get_hint_flags(), hash);
+				hash = hash_murmur3_one_64(mb->get_hint_flags(), hash);
 			}
 		}
 
@@ -228,15 +229,15 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 
 			List<StringName> snames;
 
-			for (const KeyValue<StringName, int> &F : t->constant_map) {
+			for (const KeyValue<StringName, int64_t> &F : t->constant_map) {
 				snames.push_back(F.key);
 			}
 
 			snames.sort_custom<StringName::AlphCompare>();
 
 			for (const StringName &F : snames) {
-				hash = hash_djb2_one_64(F.hash(), hash);
-				hash = hash_djb2_one_64(t->constant_map[F], hash);
+				hash = hash_murmur3_one_64(F.hash(), hash);
+				hash = hash_murmur3_one_64(t->constant_map[F], hash);
 			}
 		}
 
@@ -252,9 +253,9 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 
 			for (const StringName &F : snames) {
 				MethodInfo &mi = t->signal_map[F];
-				hash = hash_djb2_one_64(F.hash(), hash);
+				hash = hash_murmur3_one_64(F.hash(), hash);
 				for (int i = 0; i < mi.arguments.size(); i++) {
-					hash = hash_djb2_one_64(mi.arguments[i].type, hash);
+					hash = hash_murmur3_one_64(mi.arguments[i].type, hash);
 				}
 			}
 		}
@@ -273,23 +274,23 @@ uint64_t ClassDB::get_api_hash(APIType p_api) {
 				PropertySetGet *psg = t->property_setget.getptr(F);
 				ERR_FAIL_COND_V(!psg, 0);
 
-				hash = hash_djb2_one_64(F.hash(), hash);
-				hash = hash_djb2_one_64(psg->setter.hash(), hash);
-				hash = hash_djb2_one_64(psg->getter.hash(), hash);
+				hash = hash_murmur3_one_64(F.hash(), hash);
+				hash = hash_murmur3_one_64(psg->setter.hash(), hash);
+				hash = hash_murmur3_one_64(psg->getter.hash(), hash);
 			}
 		}
 
 		//property list
 		for (const PropertyInfo &F : t->property_list) {
-			hash = hash_djb2_one_64(F.name.hash(), hash);
-			hash = hash_djb2_one_64(F.type, hash);
-			hash = hash_djb2_one_64(F.hint, hash);
-			hash = hash_djb2_one_64(F.hint_string.hash(), hash);
-			hash = hash_djb2_one_64(F.usage, hash);
+			hash = hash_murmur3_one_64(F.name.hash(), hash);
+			hash = hash_murmur3_one_64(F.type, hash);
+			hash = hash_murmur3_one_64(F.hint, hash);
+			hash = hash_murmur3_one_64(F.hint_string.hash(), hash);
+			hash = hash_murmur3_one_64(F.usage, hash);
 		}
 	}
 
-	return hash;
+	return hash_fmix32(hash);
 #else
 	return 0;
 #endif
@@ -305,12 +306,19 @@ void ClassDB::add_compatibility_class(const StringName &p_class, const StringNam
 	compat_classes[p_class] = p_fallback;
 }
 
+StringName ClassDB::get_compatibility_class(const StringName &p_class) {
+	if (compat_classes.has(p_class)) {
+		return compat_classes[p_class];
+	}
+	return StringName();
+}
+
 Object *ClassDB::instantiate(const StringName &p_class) {
 	ClassInfo *ti;
 	{
 		OBJTYPE_RLOCK;
 		ti = classes.getptr(p_class);
-		if (!ti || ti->disabled || !ti->creation_func || (ti->native_extension && !ti->native_extension->create_instance)) {
+		if (!ti || ti->disabled || !ti->creation_func || (ti->gdextension && !ti->gdextension->create_instance)) {
 			if (compat_classes.has(p_class)) {
 				ti = classes.getptr(compat_classes[p_class]);
 			}
@@ -325,8 +333,8 @@ Object *ClassDB::instantiate(const StringName &p_class) {
 		return nullptr;
 	}
 #endif
-	if (ti->native_extension && ti->native_extension->create_instance) {
-		return (Object *)ti->native_extension->create_instance(ti->native_extension->class_userdata);
+	if (ti->gdextension && ti->gdextension->create_instance) {
+		return (Object *)ti->gdextension->create_instance(ti->gdextension->class_userdata);
 	} else {
 		return ti->creation_func();
 	}
@@ -338,17 +346,17 @@ void ClassDB::set_object_extension_instance(Object *p_object, const StringName &
 	{
 		OBJTYPE_RLOCK;
 		ti = classes.getptr(p_class);
-		if (!ti || ti->disabled || !ti->creation_func || (ti->native_extension && !ti->native_extension->create_instance)) {
+		if (!ti || ti->disabled || !ti->creation_func || (ti->gdextension && !ti->gdextension->create_instance)) {
 			if (compat_classes.has(p_class)) {
 				ti = classes.getptr(compat_classes[p_class]);
 			}
 		}
 		ERR_FAIL_COND_MSG(!ti, "Cannot get class '" + String(p_class) + "'.");
 		ERR_FAIL_COND_MSG(ti->disabled, "Class '" + String(p_class) + "' is disabled.");
-		ERR_FAIL_COND_MSG(!ti->native_extension, "Class '" + String(p_class) + "' has no native extension.");
+		ERR_FAIL_COND_MSG(!ti->gdextension, "Class '" + String(p_class) + "' has no native extension.");
 	}
 
-	p_object->_extension = ti->native_extension;
+	p_object->_extension = ti->gdextension;
 	p_object->_extension_instance = p_instance;
 }
 
@@ -362,20 +370,25 @@ bool ClassDB::can_instantiate(const StringName &p_class) {
 		return false;
 	}
 #endif
-	return (!ti->disabled && ti->creation_func != nullptr && !(ti->native_extension && !ti->native_extension->create_instance));
+	return (!ti->disabled && ti->creation_func != nullptr && !(ti->gdextension && !ti->gdextension->create_instance));
 }
 
 bool ClassDB::is_virtual(const StringName &p_class) {
 	OBJTYPE_RLOCK;
 
 	ClassInfo *ti = classes.getptr(p_class);
-	ERR_FAIL_COND_V_MSG(!ti, false, "Cannot get class '" + String(p_class) + "'.");
+	if (!ti) {
+		if (!ScriptServer::is_global_class(p_class)) {
+			ERR_FAIL_V_MSG(false, "Cannot get class '" + String(p_class) + "'.");
+		}
+		return false;
+	}
 #ifdef TOOLS_ENABLED
 	if (ti->api == API_EDITOR && !Engine::get_singleton()->is_editor_hint()) {
 		return false;
 	}
 #endif
-	return (!ti->disabled && ti->creation_func != nullptr && !(ti->native_extension && !ti->native_extension->create_instance) && ti->is_virtual);
+	return (!ti->disabled && ti->creation_func != nullptr && !(ti->gdextension && !ti->gdextension->create_instance) && ti->is_virtual);
 }
 
 void ClassDB::_add_class2(const StringName &p_class, const StringName &p_inherits) {
@@ -536,7 +549,7 @@ MethodBind *ClassDB::get_method(const StringName &p_class, const StringName &p_n
 	return nullptr;
 }
 
-void ClassDB::bind_integer_constant(const StringName &p_class, const StringName &p_enum, const StringName &p_name, int p_constant) {
+void ClassDB::bind_integer_constant(const StringName &p_class, const StringName &p_enum, const StringName &p_name, int64_t p_constant, bool p_is_bitfield) {
 	OBJTYPE_WLOCK;
 
 	ClassInfo *type = classes.getptr(p_class);
@@ -555,13 +568,15 @@ void ClassDB::bind_integer_constant(const StringName &p_class, const StringName 
 			enum_name = enum_name.get_slicec('.', 1);
 		}
 
-		List<StringName> *constants_list = type->enum_map.getptr(enum_name);
+		ClassInfo::EnumInfo *constants_list = type->enum_map.getptr(enum_name);
 
 		if (constants_list) {
-			constants_list->push_back(p_name);
+			constants_list->constants.push_back(p_name);
+			constants_list->is_bitfield = p_is_bitfield;
 		} else {
-			List<StringName> new_list;
-			new_list.push_back(p_name);
+			ClassInfo::EnumInfo new_list;
+			new_list.is_bitfield = p_is_bitfield;
+			new_list.constants.push_back(p_name);
 			type->enum_map[enum_name] = new_list;
 		}
 	}
@@ -583,7 +598,7 @@ void ClassDB::get_integer_constant_list(const StringName &p_class, List<String> 
 		}
 #else
 
-		for (const KeyValue<StringName, int> &E : type->constant_map) {
+		for (const KeyValue<StringName, int64_t> &E : type->constant_map) {
 			p_constants->push_back(E.key);
 		}
 
@@ -596,13 +611,13 @@ void ClassDB::get_integer_constant_list(const StringName &p_class, List<String> 
 	}
 }
 
-int ClassDB::get_integer_constant(const StringName &p_class, const StringName &p_name, bool *p_success) {
+int64_t ClassDB::get_integer_constant(const StringName &p_class, const StringName &p_name, bool *p_success) {
 	OBJTYPE_RLOCK;
 
 	ClassInfo *type = classes.getptr(p_class);
 
 	while (type) {
-		int *constant = type->constant_map.getptr(p_name);
+		int64_t *constant = type->constant_map.getptr(p_name);
 		if (constant) {
 			if (p_success) {
 				*p_success = true;
@@ -645,8 +660,8 @@ StringName ClassDB::get_integer_constant_enum(const StringName &p_class, const S
 	ClassInfo *type = classes.getptr(p_class);
 
 	while (type) {
-		for (KeyValue<StringName, List<StringName>> &E : type->enum_map) {
-			List<StringName> &constants_list = E.value;
+		for (KeyValue<StringName, ClassInfo::EnumInfo> &E : type->enum_map) {
+			List<StringName> &constants_list = E.value.constants;
 			const List<StringName>::Element *found = constants_list.find(p_name);
 			if (found) {
 				return E.key;
@@ -669,7 +684,7 @@ void ClassDB::get_enum_list(const StringName &p_class, List<StringName> *p_enums
 	ClassInfo *type = classes.getptr(p_class);
 
 	while (type) {
-		for (KeyValue<StringName, List<StringName>> &E : type->enum_map) {
+		for (KeyValue<StringName, ClassInfo::EnumInfo> &E : type->enum_map) {
 			p_enums->push_back(E.key);
 		}
 
@@ -687,10 +702,10 @@ void ClassDB::get_enum_constants(const StringName &p_class, const StringName &p_
 	ClassInfo *type = classes.getptr(p_class);
 
 	while (type) {
-		const List<StringName> *constants = type->enum_map.getptr(p_enum);
+		const ClassInfo::EnumInfo *constants = type->enum_map.getptr(p_enum);
 
 		if (constants) {
-			for (const List<StringName>::Element *E = constants->front(); E; E = E->next()) {
+			for (const List<StringName>::Element *E = constants->constants.front(); E; E = E->next()) {
 				p_constants->push_back(E->get());
 			}
 		}
@@ -736,6 +751,25 @@ bool ClassDB::has_enum(const StringName &p_class, const StringName &p_name, bool
 
 	while (type) {
 		if (type->enum_map.has(p_name)) {
+			return true;
+		}
+		if (p_no_inheritance) {
+			return false;
+		}
+
+		type = type->inherits_ptr;
+	}
+
+	return false;
+}
+
+bool ClassDB::is_enum_bitfield(const StringName &p_class, const StringName &p_name, bool p_no_inheritance) {
+	OBJTYPE_RLOCK;
+
+	ClassInfo *type = classes.getptr(p_class);
+
+	while (type) {
+		if (type->enum_map.has(p_name) && type->enum_map[p_name].is_bitfield) {
 			return true;
 		}
 		if (p_no_inheritance) {
@@ -935,8 +969,11 @@ void ClassDB::add_linked_property(const StringName &p_class, const String &p_pro
 	ERR_FAIL_COND(!type->property_map.has(p_property));
 	ERR_FAIL_COND(!type->property_map.has(p_linked_property));
 
-	PropertyInfo &pinfo = type->property_map[p_property];
-	pinfo.linked_properties.push_back(p_linked_property);
+	if (!type->linked_properties.has(p_property)) {
+		type->linked_properties.insert(p_property, List<StringName>());
+	}
+	type->linked_properties[p_property].push_back(p_linked_property);
+
 #endif
 }
 
@@ -950,7 +987,7 @@ void ClassDB::get_property_list(const StringName &p_class, List<PropertyInfo> *p
 			if (p_validator) {
 				// Making a copy as we may modify it.
 				PropertyInfo pi_mut = pi;
-				p_validator->_validate_property(pi_mut);
+				p_validator->validate_property(pi_mut);
 				p_list->push_back(pi_mut);
 			} else {
 				p_list->push_back(pi);
@@ -964,6 +1001,25 @@ void ClassDB::get_property_list(const StringName &p_class, List<PropertyInfo> *p
 	}
 }
 
+void ClassDB::get_linked_properties_info(const StringName &p_class, const StringName &p_property, List<StringName> *r_properties, bool p_no_inheritance) {
+#ifdef TOOLS_ENABLED
+	ClassInfo *check = classes.getptr(p_class);
+	while (check) {
+		if (!check->linked_properties.has(p_property)) {
+			return;
+		}
+		for (const StringName &E : check->linked_properties[p_property]) {
+			r_properties->push_back(E);
+		}
+
+		if (p_no_inheritance) {
+			break;
+		}
+		check = check->inherits_ptr;
+	}
+#endif
+}
+
 bool ClassDB::get_property_info(const StringName &p_class, const StringName &p_property, PropertyInfo *r_info, bool p_no_inheritance, const Object *p_validator) {
 	OBJTYPE_RLOCK;
 
@@ -972,7 +1028,7 @@ bool ClassDB::get_property_info(const StringName &p_class, const StringName &p_p
 		if (check->property_map.has(p_property)) {
 			PropertyInfo pinfo = check->property_map[p_property];
 			if (p_validator) {
-				p_validator->_validate_property(pinfo);
+				p_validator->validate_property(pinfo);
 			}
 			if (r_info) {
 				*r_info = pinfo;
@@ -1066,7 +1122,7 @@ bool ClassDB::get_property(Object *p_object, const StringName &p_property, Varia
 			return true;
 		}
 
-		const int *c = check->constant_map.getptr(p_property); //constants count
+		const int64_t *c = check->constant_map.getptr(p_property); //constants count
 		if (c) {
 			r_value = *c;
 			return true;
@@ -1404,7 +1460,7 @@ Variant ClassDB::class_get_default_property_value(const StringName &p_class, con
 		if (Engine::get_singleton()->has_singleton(p_class)) {
 			c = Engine::get_singleton()->get_singleton_object(p_class);
 			cleanup_c = false;
-		} else if (ClassDB::can_instantiate(p_class) && !ClassDB::is_virtual(p_class)) {
+		} else if (ClassDB::can_instantiate(p_class) && !ClassDB::is_virtual(p_class)) { // Keep this condition in sync with doc_tools.cpp get_documentation_default_value.
 			c = ClassDB::instantiate(p_class);
 			cleanup_c = true;
 		}
@@ -1466,7 +1522,7 @@ Variant ClassDB::class_get_default_property_value(const StringName &p_class, con
 	return var;
 }
 
-void ClassDB::register_extension_class(ObjectNativeExtension *p_extension) {
+void ClassDB::register_extension_class(ObjectGDExtension *p_extension) {
 	GLOBAL_LOCK_FUNCTION;
 
 	ERR_FAIL_COND_MSG(classes.has(p_extension->class_name), "Class already registered: " + String(p_extension->class_name));
@@ -1476,9 +1532,12 @@ void ClassDB::register_extension_class(ObjectNativeExtension *p_extension) {
 
 	ClassInfo c;
 	c.api = p_extension->editor_class ? API_EDITOR_EXTENSION : API_EXTENSION;
-	c.native_extension = p_extension;
+	c.gdextension = p_extension;
 	c.name = p_extension->class_name;
-	c.creation_func = parent->creation_func;
+	c.is_virtual = p_extension->is_virtual;
+	if (!p_extension->is_abstract) {
+		c.creation_func = parent->creation_func;
+	}
 	c.inherits = parent->name;
 	c.class_ptr = parent->class_ptr;
 	c.inherits_ptr = parent;
@@ -1488,7 +1547,11 @@ void ClassDB::register_extension_class(ObjectNativeExtension *p_extension) {
 }
 
 void ClassDB::unregister_extension_class(const StringName &p_class) {
-	ERR_FAIL_COND(!classes.has(p_class));
+	ClassInfo *c = classes.getptr(p_class);
+	ERR_FAIL_COND_MSG(!c, "Class " + p_class + "does not exist");
+	for (KeyValue<StringName, MethodBind *> &F : c->method_map) {
+		memdelete(F.value);
+	}
 	classes.erase(p_class);
 }
 

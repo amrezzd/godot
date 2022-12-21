@@ -30,6 +30,7 @@
 
 #include "audio_stream_player_2d.h"
 
+#include "core/config/project_settings.h"
 #include "scene/2d/area_2d.h"
 #include "scene/2d/audio_listener_2d.h"
 #include "scene/main/window.h"
@@ -42,11 +43,16 @@ void AudioStreamPlayer2D::_notification(int p_what) {
 			if (autoplay && !Engine::get_singleton()->is_editor_hint()) {
 				play();
 			}
+			set_stream_paused(false);
 		} break;
 
 		case NOTIFICATION_EXIT_TREE: {
-			stop();
+			set_stream_paused(true);
 			AudioServer::get_singleton()->remove_listener_changed_callback(_listener_changed_cb, this);
+		} break;
+
+		case NOTIFICATION_PREDELETE: {
+			stop();
 		} break;
 
 		case NOTIFICATION_PAUSED: {
@@ -68,7 +74,7 @@ void AudioStreamPlayer2D::_notification(int p_what) {
 
 			if (setplay.get() >= 0 && stream.is_valid()) {
 				active.set();
-				Ref<AudioStreamPlayback> new_playback = stream->instance_playback();
+				Ref<AudioStreamPlayback> new_playback = stream->instantiate_playback();
 				ERR_FAIL_COND_MSG(new_playback.is_null(), "Failed to instantiate playback.");
 				AudioServer::get_singleton()->start_playback_stream(new_playback, _get_actual_bus(), volume_vector, setplay.get(), pitch_scale);
 				stream_playbacks.push_back(new_playback);
@@ -184,9 +190,16 @@ void AudioStreamPlayer2D::_update_panning() {
 		}
 
 		float multiplier = Math::pow(1.0f - dist / max_distance, attenuation);
-		multiplier *= Math::db2linear(volume_db); //also apply player volume!
+		multiplier *= Math::db_to_linear(volume_db); //also apply player volume!
 
-		float pan = CLAMP((relative_to_listener.x + screen_size.x * 0.5) / screen_size.x, 0.0, 1.0);
+		float pan = relative_to_listener.x / screen_size.x;
+		// Don't let the panning effect extend (too far) beyond the screen.
+		pan = CLAMP(pan, -1, 1);
+
+		// Bake in a constant factor here to allow the project setting defaults for 2d and 3d to be normalized to 1.0.
+		pan *= panning_strength * cached_global_panning_strength * 0.5f;
+
+		pan = CLAMP(pan + 0.5, 0.0, 1.0);
 
 		float l = 1.0 - pan;
 		float r = pan;
@@ -271,6 +284,9 @@ bool AudioStreamPlayer2D::is_playing() const {
 			return true;
 		}
 	}
+	if (setplay.get() >= 0) {
+		return true; // play() has been called this frame, but no playback exists just yet.
+	}
 	return false;
 }
 
@@ -315,8 +331,8 @@ bool AudioStreamPlayer2D::_is_active() const {
 	return active.is_set();
 }
 
-void AudioStreamPlayer2D::_validate_property(PropertyInfo &property) const {
-	if (property.name == "bus") {
+void AudioStreamPlayer2D::_validate_property(PropertyInfo &p_property) const {
+	if (p_property.name == "bus") {
 		String options;
 		for (int i = 0; i < AudioServer::get_singleton()->get_bus_count(); i++) {
 			if (i > 0) {
@@ -326,7 +342,7 @@ void AudioStreamPlayer2D::_validate_property(PropertyInfo &property) const {
 			options += name;
 		}
 
-		property.hint_string = options;
+		p_property.hint_string = options;
 	}
 }
 
@@ -391,6 +407,15 @@ int AudioStreamPlayer2D::get_max_polyphony() const {
 	return max_polyphony;
 }
 
+void AudioStreamPlayer2D::set_panning_strength(float p_panning_strength) {
+	ERR_FAIL_COND_MSG(p_panning_strength < 0, "Panning strength must be a positive number.");
+	panning_strength = p_panning_strength;
+}
+
+float AudioStreamPlayer2D::get_panning_strength() const {
+	return panning_strength;
+}
+
 void AudioStreamPlayer2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_stream", "stream"), &AudioStreamPlayer2D::set_stream);
 	ClassDB::bind_method(D_METHOD("get_stream"), &AudioStreamPlayer2D::get_stream);
@@ -432,6 +457,9 @@ void AudioStreamPlayer2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_polyphony", "max_polyphony"), &AudioStreamPlayer2D::set_max_polyphony);
 	ClassDB::bind_method(D_METHOD("get_max_polyphony"), &AudioStreamPlayer2D::get_max_polyphony);
 
+	ClassDB::bind_method(D_METHOD("set_panning_strength", "panning_strength"), &AudioStreamPlayer2D::set_panning_strength);
+	ClassDB::bind_method(D_METHOD("get_panning_strength"), &AudioStreamPlayer2D::get_panning_strength);
+
 	ClassDB::bind_method(D_METHOD("get_stream_playback"), &AudioStreamPlayer2D::get_stream_playback);
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "stream", PROPERTY_HINT_RESOURCE_TYPE, "AudioStream"), "set_stream", "get_stream");
@@ -443,6 +471,7 @@ void AudioStreamPlayer2D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_distance", PROPERTY_HINT_RANGE, "1,4096,1,or_greater,exp,suffix:px"), "set_max_distance", "get_max_distance");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "attenuation", PROPERTY_HINT_EXP_EASING, "attenuation"), "set_attenuation", "get_attenuation");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_polyphony", PROPERTY_HINT_NONE, ""), "set_max_polyphony", "get_max_polyphony");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "panning_strength", PROPERTY_HINT_RANGE, "0,3,0.01,or_greater"), "set_panning_strength", "get_panning_strength");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "bus", PROPERTY_HINT_ENUM, ""), "set_bus", "get_bus");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "area_mask", PROPERTY_HINT_LAYERS_2D_PHYSICS), "set_area_mask", "get_area_mask");
 
@@ -451,6 +480,7 @@ void AudioStreamPlayer2D::_bind_methods() {
 
 AudioStreamPlayer2D::AudioStreamPlayer2D() {
 	AudioServer::get_singleton()->connect("bus_layout_changed", callable_mp(this, &AudioStreamPlayer2D::_bus_layout_changed));
+	cached_global_panning_strength = GLOBAL_GET("audio/general/2d_panning_strength");
 }
 
 AudioStreamPlayer2D::~AudioStreamPlayer2D() {

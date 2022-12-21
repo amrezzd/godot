@@ -66,7 +66,11 @@ class EditorCommandPalette : public ConfirmationDialog {
 
 	struct CommandHistoryComparator {
 		_FORCE_INLINE_ bool operator()(const CommandEntry &A, const CommandEntry &B) const {
-			return A.last_used > B.last_used;
+			if (A.last_used == B.last_used) {
+				return A.display_name < B.display_name;
+			} else {
+				return A.last_used > B.last_used;
+			}
 		}
 	};
 
@@ -87,6 +91,7 @@ class EditorCommandPalette : public ConfirmationDialog {
 
 protected:
 	static void _bind_methods();
+	void _notification(int p_what);
 
 public:
 	void open_popup();
@@ -101,4 +106,4 @@ public:
 
 Ref<Shortcut> ED_SHORTCUT_AND_COMMAND(const String &p_path, const String &p_name, Key p_keycode = Key::NONE, String p_command = "");
 
-#endif //EDITOR_COMMAND_PALETTE_H
+#endif // EDITOR_COMMAND_PALETTE_H

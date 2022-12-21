@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef GDSCRIPT_WARNINGS
-#define GDSCRIPT_WARNINGS
+#ifndef GDSCRIPT_WARNING_H
+#define GDSCRIPT_WARNING_H
 
 #ifdef DEBUG_ENABLED
 
@@ -78,6 +78,7 @@ public:
 		EMPTY_FILE, // A script file is empty.
 		SHADOWED_GLOBAL_IDENTIFIER, // A global class or function has the same name as variable.
 		INT_ASSIGNED_TO_ENUM, // An integer value was assigned to an enum-typed variable without casting.
+		STATIC_CALLED_ON_INSTANCE, // A static method was called on an instance of a class instead of on the class itself.
 		WARNING_MAX,
 	};
 
@@ -97,4 +98,4 @@ public:
 
 #endif // DEBUG_ENABLED
 
-#endif // GDSCRIPT_WARNINGS
+#endif // GDSCRIPT_WARNING_H

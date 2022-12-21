@@ -71,7 +71,7 @@ private:
 	SafeNumeric<float> setplay{ -1.0 };
 
 	AttenuationModel attenuation_model = ATTENUATION_INVERSE_DISTANCE;
-	float unit_db = 0.0;
+	float volume_db = 0.0;
 	float unit_size = 10.0;
 	float max_db = 3.0;
 	float pitch_scale = 1.0;
@@ -116,8 +116,11 @@ private:
 
 	float _get_attenuation_db(float p_distance) const;
 
+	float panning_strength = 1.0f;
+	float cached_global_panning_strength = 0.5f;
+
 protected:
-	void _validate_property(PropertyInfo &property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 	void _notification(int p_what);
 	static void _bind_methods();
 
@@ -125,8 +128,8 @@ public:
 	void set_stream(Ref<AudioStream> p_stream);
 	Ref<AudioStream> get_stream() const;
 
-	void set_unit_db(float p_volume);
-	float get_unit_db() const;
+	void set_volume_db(float p_volume);
+	float get_volume_db() const;
 
 	void set_unit_size(float p_volume);
 	float get_unit_size() const;
@@ -182,6 +185,9 @@ public:
 	void set_stream_paused(bool p_pause);
 	bool get_stream_paused() const;
 
+	void set_panning_strength(float p_panning_strength);
+	float get_panning_strength() const;
+
 	Ref<AudioStreamPlayback> get_stream_playback();
 
 	AudioStreamPlayer3D();
@@ -190,4 +196,5 @@ public:
 
 VARIANT_ENUM_CAST(AudioStreamPlayer3D::AttenuationModel)
 VARIANT_ENUM_CAST(AudioStreamPlayer3D::DopplerTracking)
+
 #endif // AUDIO_STREAM_PLAYER_3D_H

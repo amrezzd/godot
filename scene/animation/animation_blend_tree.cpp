@@ -47,8 +47,8 @@ void AnimationNodeAnimation::get_parameter_list(List<PropertyInfo> *r_list) cons
 	r_list->push_back(PropertyInfo(Variant::FLOAT, time, PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE));
 }
 
-void AnimationNodeAnimation::_validate_property(PropertyInfo &property) const {
-	if (property.name == "animation" && get_editable_animation_list) {
+void AnimationNodeAnimation::_validate_property(PropertyInfo &p_property) const {
+	if (p_property.name == "animation" && get_editable_animation_list) {
 		Vector<String> names = get_editable_animation_list();
 		String anims;
 		for (int i = 0; i < names.size(); i++) {
@@ -58,23 +58,23 @@ void AnimationNodeAnimation::_validate_property(PropertyInfo &property) const {
 			anims += String(names[i]);
 		}
 		if (!anims.is_empty()) {
-			property.hint = PROPERTY_HINT_ENUM;
-			property.hint_string = anims;
+			p_property.hint = PROPERTY_HINT_ENUM;
+			p_property.hint_string = anims;
 		}
 	}
 }
 
-double AnimationNodeAnimation::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeAnimation::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	AnimationPlayer *ap = state->player;
 	ERR_FAIL_COND_V(!ap, 0);
 
-	double time = get_parameter(this->time);
+	double cur_time = get_parameter(time);
 
 	if (!ap->has_animation(animation)) {
 		AnimationNodeBlendTree *tree = Object::cast_to<AnimationNodeBlendTree>(parent);
 		if (tree) {
-			String name = tree->get_node_name(Ref<AnimationNodeAnimation>(this));
-			make_invalid(vformat(RTR("On BlendTree node '%s', animation not found: '%s'"), name, animation));
+			String node_name = tree->get_node_name(Ref<AnimationNodeAnimation>(this));
+			make_invalid(vformat(RTR("On BlendTree node '%s', animation not found: '%s'"), node_name, animation));
 
 		} else {
 			make_invalid(vformat(RTR("Animation not found: '%s'"), animation));
@@ -86,58 +86,74 @@ double AnimationNodeAnimation::process(double p_time, bool p_seek, bool p_seek_r
 	Ref<Animation> anim = ap->get_animation(animation);
 	double anim_size = (double)anim->get_length();
 	double step = 0.0;
-	double prev_time = time;
-	int pingponged = 0;
-	bool current_backward = signbit(p_time);
+	double prev_time = cur_time;
+	Animation::LoopedFlag looped_flag = Animation::LOOPED_FLAG_NONE;
+	bool node_backward = play_mode == PLAY_MODE_BACKWARD;
 
 	if (p_seek) {
-		step = p_time - time;
-		time = p_time;
+		step = p_time - cur_time;
+		cur_time = p_time;
 	} else {
 		p_time *= backward ? -1.0 : 1.0;
-		if (!(time == anim_size && !current_backward) && !(time == 0 && current_backward)) {
-			time = time + p_time;
-			step = p_time;
-		}
+		cur_time = cur_time + p_time;
+		step = p_time;
 	}
 
 	if (anim->get_loop_mode() == Animation::LOOP_PINGPONG) {
 		if (!Math::is_zero_approx(anim_size)) {
-			if ((int)Math::floor(abs(time - prev_time) / anim_size) % 2 == 0) {
-				if (prev_time > 0 && time <= 0) {
-					backward = !backward;
-					pingponged = -1;
-				}
-				if (prev_time < anim_size && time >= anim_size) {
-					backward = !backward;
-					pingponged = 1;
-				}
+			if (prev_time >= 0 && cur_time < 0) {
+				backward = !backward;
+				looped_flag = node_backward ? Animation::LOOPED_FLAG_END : Animation::LOOPED_FLAG_START;
 			}
-			time = Math::pingpong(time, anim_size);
+			if (prev_time <= anim_size && cur_time > anim_size) {
+				backward = !backward;
+				looped_flag = node_backward ? Animation::LOOPED_FLAG_START : Animation::LOOPED_FLAG_END;
+			}
+			cur_time = Math::pingpong(cur_time, anim_size);
 		}
-	} else {
-		if (anim->get_loop_mode() == Animation::LOOP_LINEAR) {
-			if (!Math::is_zero_approx(anim_size)) {
-				time = Math::fposmod(time, anim_size);
+	} else if (anim->get_loop_mode() == Animation::LOOP_LINEAR) {
+		if (!Math::is_zero_approx(anim_size)) {
+			if (prev_time >= 0 && cur_time < 0) {
+				looped_flag = node_backward ? Animation::LOOPED_FLAG_END : Animation::LOOPED_FLAG_START;
 			}
-		} else if (time < 0) {
-			step += time;
-			time = 0;
-		} else if (time > anim_size) {
-			step += anim_size - time;
-			time = anim_size;
+			if (prev_time <= anim_size && cur_time > anim_size) {
+				looped_flag = node_backward ? Animation::LOOPED_FLAG_START : Animation::LOOPED_FLAG_END;
+			}
+			cur_time = Math::fposmod(cur_time, anim_size);
 		}
 		backward = false;
+	} else {
+		if (cur_time < 0) {
+			step += cur_time;
+			cur_time = 0;
+		} else if (cur_time > anim_size) {
+			step += anim_size - cur_time;
+			cur_time = anim_size;
+		}
+		backward = false;
+
+		// If ended, don't progress animation. So set delta to 0.
+		if (p_time > 0) {
+			if (play_mode == PLAY_MODE_FORWARD) {
+				if (prev_time >= anim_size) {
+					step = 0;
+				}
+			} else {
+				if (prev_time <= 0) {
+					step = 0;
+				}
+			}
+		}
 	}
 
 	if (play_mode == PLAY_MODE_FORWARD) {
-		blend_animation(animation, time, step, p_seek, p_seek_root, 1.0, pingponged);
+		blend_animation(animation, cur_time, step, p_seek, p_is_external_seeking, 1.0, looped_flag);
 	} else {
-		blend_animation(animation, anim_size - time, -step, p_seek, p_seek_root, 1.0, pingponged);
+		blend_animation(animation, anim_size - cur_time, -step, p_seek, p_is_external_seeking, 1.0, looped_flag);
 	}
-	set_parameter(this->time, time);
+	set_parameter(time, cur_time);
 
-	return anim_size - time;
+	return anim_size - cur_time;
 }
 
 String AnimationNodeAnimation::get_caption() const {
@@ -179,6 +195,26 @@ AnimationNodeAnimation::AnimationNodeAnimation() {
 
 ////////////////////////////////////////////////////////
 
+void AnimationNodeSync::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeSync::set_use_sync);
+	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeSync::is_using_sync);
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
+}
+
+void AnimationNodeSync::set_use_sync(bool p_sync) {
+	sync = p_sync;
+}
+
+bool AnimationNodeSync::is_using_sync() const {
+	return sync;
+}
+
+AnimationNodeSync::AnimationNodeSync() {
+}
+
+////////////////////////////////////////////////////////
+
 void AnimationNodeOneShot::get_parameter_list(List<PropertyInfo> *r_list) const {
 	r_list->push_back(PropertyInfo(Variant::BOOL, active));
 	r_list->push_back(PropertyInfo(Variant::BOOL, prev_active, PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE));
@@ -197,19 +233,19 @@ Variant AnimationNodeOneShot::get_parameter_default_value(const StringName &p_pa
 	}
 }
 
-void AnimationNodeOneShot::set_fadein_time(float p_time) {
+void AnimationNodeOneShot::set_fadein_time(double p_time) {
 	fade_in = p_time;
 }
 
-void AnimationNodeOneShot::set_fadeout_time(float p_time) {
+void AnimationNodeOneShot::set_fadeout_time(double p_time) {
 	fade_out = p_time;
 }
 
-float AnimationNodeOneShot::get_fadein_time() const {
+double AnimationNodeOneShot::get_fadein_time() const {
 	return fade_in;
 }
 
-float AnimationNodeOneShot::get_fadeout_time() const {
+double AnimationNodeOneShot::get_fadeout_time() const {
 	return fade_out;
 }
 
@@ -217,11 +253,11 @@ void AnimationNodeOneShot::set_autorestart(bool p_active) {
 	autorestart = p_active;
 }
 
-void AnimationNodeOneShot::set_autorestart_delay(float p_time) {
+void AnimationNodeOneShot::set_autorestart_delay(double p_time) {
 	autorestart_delay = p_time;
 }
 
-void AnimationNodeOneShot::set_autorestart_random_delay(float p_time) {
+void AnimationNodeOneShot::set_autorestart_random_delay(double p_time) {
 	autorestart_random_delay = p_time;
 }
 
@@ -229,11 +265,11 @@ bool AnimationNodeOneShot::has_autorestart() const {
 	return autorestart;
 }
 
-float AnimationNodeOneShot::get_autorestart_delay() const {
+double AnimationNodeOneShot::get_autorestart_delay() const {
 	return autorestart_delay;
 }
 
-float AnimationNodeOneShot::get_autorestart_random_delay() const {
+double AnimationNodeOneShot::get_autorestart_random_delay() const {
 	return autorestart_random_delay;
 }
 
@@ -253,57 +289,55 @@ bool AnimationNodeOneShot::has_filter() const {
 	return true;
 }
 
-double AnimationNodeOneShot::process(double p_time, bool p_seek, bool p_seek_root) {
-	bool active = get_parameter(this->active);
-	bool prev_active = get_parameter(this->prev_active);
-	double time = get_parameter(this->time);
-	double remaining = get_parameter(this->remaining);
-	double time_to_restart = get_parameter(this->time_to_restart);
+double AnimationNodeOneShot::process(double p_time, bool p_seek, bool p_is_external_seeking) {
+	bool cur_active = get_parameter(active);
+	bool cur_prev_active = get_parameter(prev_active);
+	double cur_time = get_parameter(time);
+	double cur_remaining = get_parameter(remaining);
+	double cur_time_to_restart = get_parameter(time_to_restart);
 
-	if (!active) {
+	if (!cur_active) {
 		//make it as if this node doesn't exist, pass input 0 by.
-		if (prev_active) {
-			set_parameter(this->prev_active, false);
+		if (cur_prev_active) {
+			set_parameter(prev_active, false);
 		}
-		if (time_to_restart >= 0.0 && !p_seek) {
-			time_to_restart -= p_time;
-			if (time_to_restart < 0) {
+		if (cur_time_to_restart >= 0.0 && !p_seek) {
+			cur_time_to_restart -= p_time;
+			if (cur_time_to_restart < 0) {
 				//restart
-				set_parameter(this->active, true);
-				active = true;
+				set_parameter(active, true);
+				cur_active = true;
 			}
-			set_parameter(this->time_to_restart, time_to_restart);
+			set_parameter(time_to_restart, cur_time_to_restart);
 		}
 
-		if (!active) {
-			return blend_input(0, p_time, p_seek, p_seek_root, 1.0, FILTER_IGNORE, !sync);
-		}
+		return blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, sync);
 	}
 
 	bool os_seek = p_seek;
 
 	if (p_seek) {
-		time = p_time;
+		cur_time = p_time;
 	}
-	bool do_start = !prev_active;
+	bool do_start = !cur_prev_active;
 
 	if (do_start) {
-		time = 0;
+		cur_time = 0;
 		os_seek = true;
-		set_parameter(this->prev_active, true);
+		set_parameter(prev_active, true);
 	}
 
-	float blend;
+	real_t blend;
 
-	if (time < fade_in) {
+	if (cur_time < fade_in) {
 		if (fade_in > 0) {
-			blend = time / fade_in;
+			blend = cur_time / fade_in;
 		} else {
 			blend = 0;
 		}
-	} else if (!do_start && remaining <= fade_out) {
+	} else if (!do_start && cur_remaining <= fade_out) {
 		if (fade_out > 0) {
-			blend = (remaining / fade_out);
+			blend = (cur_remaining / fade_out);
 		} else {
 			blend = 0;
 		}
@@ -313,42 +347,33 @@ double AnimationNodeOneShot::process(double p_time, bool p_seek, bool p_seek_roo
 
 	double main_rem;
 	if (mix == MIX_MODE_ADD) {
-		main_rem = blend_input(0, p_time, p_seek, p_seek_root, 1.0, FILTER_IGNORE, !sync);
+		main_rem = blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, sync);
 	} else {
-		main_rem = blend_input(0, p_time, p_seek, p_seek_root, 1.0 - blend, FILTER_BLEND, !sync);
+		main_rem = blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0 - blend, FILTER_BLEND, sync); // Unlike below, processing this edge is a corner case.
 	}
-
-	double os_rem = blend_input(1, os_seek ? time : p_time, os_seek, p_seek_root, blend, FILTER_PASS, false);
+	double os_rem = blend_input(1, os_seek ? cur_time : p_time, os_seek, p_is_external_seeking, Math::is_zero_approx(blend) ? CMP_EPSILON : blend, FILTER_PASS, true); // Blend values must be more than CMP_EPSILON to process discrete keys in edge.
 
 	if (do_start) {
-		remaining = os_rem;
+		cur_remaining = os_rem;
 	}
 
 	if (!p_seek) {
-		time += p_time;
-		remaining = os_rem;
-		if (remaining <= 0) {
-			set_parameter(this->active, false);
-			set_parameter(this->prev_active, false);
+		cur_time += p_time;
+		cur_remaining = os_rem;
+		if (cur_remaining <= 0) {
+			set_parameter(active, false);
+			set_parameter(prev_active, false);
 			if (autorestart) {
-				float restart_sec = autorestart_delay + Math::randf() * autorestart_random_delay;
-				set_parameter(this->time_to_restart, restart_sec);
+				double restart_sec = autorestart_delay + Math::randd() * autorestart_random_delay;
+				set_parameter(time_to_restart, restart_sec);
 			}
 		}
 	}
 
-	set_parameter(this->time, time);
-	set_parameter(this->remaining, remaining);
+	set_parameter(time, cur_time);
+	set_parameter(remaining, cur_remaining);
 
-	return MAX(main_rem, remaining);
-}
-
-void AnimationNodeOneShot::set_use_sync(bool p_sync) {
-	sync = p_sync;
-}
-
-bool AnimationNodeOneShot::is_using_sync() const {
-	return sync;
+	return MAX(main_rem, cur_remaining);
 }
 
 void AnimationNodeOneShot::_bind_methods() {
@@ -370,9 +395,6 @@ void AnimationNodeOneShot::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_mix_mode", "mode"), &AnimationNodeOneShot::set_mix_mode);
 	ClassDB::bind_method(D_METHOD("get_mix_mode"), &AnimationNodeOneShot::get_mix_mode);
 
-	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeOneShot::set_use_sync);
-	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeOneShot::is_using_sync);
-
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "mix_mode", PROPERTY_HINT_ENUM, "Blend,Add"), "set_mix_mode", "get_mix_mode");
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fadein_time", PROPERTY_HINT_RANGE, "0,60,0.01,or_greater,suffix:s"), "set_fadein_time", "get_fadein_time");
@@ -383,9 +405,6 @@ void AnimationNodeOneShot::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "autorestart_delay", PROPERTY_HINT_RANGE, "0,60,0.01,or_greater,suffix:s"), "set_autorestart_delay", "get_autorestart_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "autorestart_random_delay", PROPERTY_HINT_RANGE, "0,60,0.01,or_greater,suffix:s"), "set_autorestart_random_delay", "get_autorestart_random_delay");
-
-	ADD_GROUP("", "");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
 
 	BIND_ENUM_CONSTANT(MIX_MODE_BLEND);
 	BIND_ENUM_CONSTANT(MIX_MODE_ADD);
@@ -410,31 +429,19 @@ String AnimationNodeAdd2::get_caption() const {
 	return "Add2";
 }
 
-void AnimationNodeAdd2::set_use_sync(bool p_sync) {
-	sync = p_sync;
-}
-
-bool AnimationNodeAdd2::is_using_sync() const {
-	return sync;
-}
-
 bool AnimationNodeAdd2::has_filter() const {
 	return true;
 }
 
-double AnimationNodeAdd2::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeAdd2::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	double amount = get_parameter(add_amount);
-	double rem0 = blend_input(0, p_time, p_seek, p_seek_root, 1.0, FILTER_IGNORE, !sync);
-	blend_input(1, p_time, p_seek, p_seek_root, amount, FILTER_PASS, !sync);
+	double rem0 = blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, sync);
+	blend_input(1, p_time, p_seek, p_is_external_seeking, amount, FILTER_PASS, sync);
 
 	return rem0;
 }
 
 void AnimationNodeAdd2::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeAdd2::set_use_sync);
-	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeAdd2::is_using_sync);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
 }
 
 AnimationNodeAdd2::AnimationNodeAdd2() {
@@ -456,32 +463,20 @@ String AnimationNodeAdd3::get_caption() const {
 	return "Add3";
 }
 
-void AnimationNodeAdd3::set_use_sync(bool p_sync) {
-	sync = p_sync;
-}
-
-bool AnimationNodeAdd3::is_using_sync() const {
-	return sync;
-}
-
 bool AnimationNodeAdd3::has_filter() const {
 	return true;
 }
 
-double AnimationNodeAdd3::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeAdd3::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	double amount = get_parameter(add_amount);
-	blend_input(0, p_time, p_seek, p_seek_root, MAX(0, -amount), FILTER_PASS, !sync);
-	double rem0 = blend_input(1, p_time, p_seek, p_seek_root, 1.0, FILTER_IGNORE, !sync);
-	blend_input(2, p_time, p_seek, p_seek_root, MAX(0, amount), FILTER_PASS, !sync);
+	blend_input(0, p_time, p_seek, p_is_external_seeking, MAX(0, -amount), FILTER_PASS, sync);
+	double rem0 = blend_input(1, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, sync);
+	blend_input(2, p_time, p_seek, p_is_external_seeking, MAX(0, amount), FILTER_PASS, sync);
 
 	return rem0;
 }
 
 void AnimationNodeAdd3::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeAdd3::set_use_sync);
-	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeAdd3::is_using_sync);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
 }
 
 AnimationNodeAdd3::AnimationNodeAdd3() {
@@ -504,21 +499,13 @@ String AnimationNodeBlend2::get_caption() const {
 	return "Blend2";
 }
 
-double AnimationNodeBlend2::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeBlend2::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	double amount = get_parameter(blend_amount);
 
-	double rem0 = blend_input(0, p_time, p_seek, p_seek_root, 1.0 - amount, FILTER_BLEND, !sync);
-	double rem1 = blend_input(1, p_time, p_seek, p_seek_root, amount, FILTER_PASS, !sync);
+	double rem0 = blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0 - amount, FILTER_BLEND, sync);
+	double rem1 = blend_input(1, p_time, p_seek, p_is_external_seeking, amount, FILTER_PASS, sync);
 
 	return amount > 0.5 ? rem1 : rem0; //hacky but good enough
-}
-
-void AnimationNodeBlend2::set_use_sync(bool p_sync) {
-	sync = p_sync;
-}
-
-bool AnimationNodeBlend2::is_using_sync() const {
-	return sync;
 }
 
 bool AnimationNodeBlend2::has_filter() const {
@@ -526,10 +513,6 @@ bool AnimationNodeBlend2::has_filter() const {
 }
 
 void AnimationNodeBlend2::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeBlend2::set_use_sync);
-	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeBlend2::is_using_sync);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
 }
 
 AnimationNodeBlend2::AnimationNodeBlend2() {
@@ -551,41 +534,28 @@ String AnimationNodeBlend3::get_caption() const {
 	return "Blend3";
 }
 
-void AnimationNodeBlend3::set_use_sync(bool p_sync) {
-	sync = p_sync;
-}
-
-bool AnimationNodeBlend3::is_using_sync() const {
-	return sync;
-}
-
-double AnimationNodeBlend3::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeBlend3::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	double amount = get_parameter(blend_amount);
-	double rem0 = blend_input(0, p_time, p_seek, p_seek_root, MAX(0, -amount), FILTER_IGNORE, !sync);
-	double rem1 = blend_input(1, p_time, p_seek, p_seek_root, 1.0 - ABS(amount), FILTER_IGNORE, !sync);
-	double rem2 = blend_input(2, p_time, p_seek, p_seek_root, MAX(0, amount), FILTER_IGNORE, !sync);
+	double rem0 = blend_input(0, p_time, p_seek, p_is_external_seeking, MAX(0, -amount), FILTER_IGNORE, sync);
+	double rem1 = blend_input(1, p_time, p_seek, p_is_external_seeking, 1.0 - ABS(amount), FILTER_IGNORE, sync);
+	double rem2 = blend_input(2, p_time, p_seek, p_is_external_seeking, MAX(0, amount), FILTER_IGNORE, sync);
 
 	return amount > 0.5 ? rem2 : (amount < -0.5 ? rem0 : rem1); //hacky but good enough
 }
 
 void AnimationNodeBlend3::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_use_sync", "enable"), &AnimationNodeBlend3::set_use_sync);
-	ClassDB::bind_method(D_METHOD("is_using_sync"), &AnimationNodeBlend3::is_using_sync);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sync"), "set_use_sync", "is_using_sync");
 }
 
 AnimationNodeBlend3::AnimationNodeBlend3() {
 	add_input("-blend");
 	add_input("in");
 	add_input("+blend");
-	sync = false;
 }
 
 /////////////////////////////////
 
 void AnimationNodeTimeScale::get_parameter_list(List<PropertyInfo> *r_list) const {
-	r_list->push_back(PropertyInfo(Variant::FLOAT, scale, PROPERTY_HINT_RANGE, "-32,32,0.01,or_lesser,or_greater"));
+	r_list->push_back(PropertyInfo(Variant::FLOAT, scale, PROPERTY_HINT_RANGE, "-32,32,0.01,or_less,or_greater"));
 }
 
 Variant AnimationNodeTimeScale::get_parameter_default_value(const StringName &p_parameter) const {
@@ -596,12 +566,12 @@ String AnimationNodeTimeScale::get_caption() const {
 	return "TimeScale";
 }
 
-double AnimationNodeTimeScale::process(double p_time, bool p_seek, bool p_seek_root) {
-	double scale = get_parameter(this->scale);
+double AnimationNodeTimeScale::process(double p_time, bool p_seek, bool p_is_external_seeking) {
+	double cur_scale = get_parameter(scale);
 	if (p_seek) {
-		return blend_input(0, p_time, true, p_seek_root, 1.0, FILTER_IGNORE, false);
+		return blend_input(0, p_time, true, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 	} else {
-		return blend_input(0, p_time * scale, false, p_seek_root, 1.0, FILTER_IGNORE, false);
+		return blend_input(0, p_time * cur_scale, false, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 	}
 }
 
@@ -626,16 +596,16 @@ String AnimationNodeTimeSeek::get_caption() const {
 	return "Seek";
 }
 
-double AnimationNodeTimeSeek::process(double p_time, bool p_seek, bool p_seek_root) {
-	double seek_pos = get_parameter(this->seek_pos);
+double AnimationNodeTimeSeek::process(double p_time, bool p_seek, bool p_is_external_seeking) {
+	double cur_seek_pos = get_parameter(seek_pos);
 	if (p_seek) {
-		return blend_input(0, p_time, true, p_seek_root, 1.0, FILTER_IGNORE, false);
-	} else if (seek_pos >= 0) {
-		double ret = blend_input(0, seek_pos, true, true, 1.0, FILTER_IGNORE, false);
-		set_parameter(this->seek_pos, -1.0); //reset
+		return blend_input(0, p_time, true, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
+	} else if (cur_seek_pos >= 0) {
+		double ret = blend_input(0, cur_seek_pos, true, true, 1.0, FILTER_IGNORE, true);
+		set_parameter(seek_pos, -1.0); //reset
 		return ret;
 	} else {
-		return blend_input(0, p_time, false, p_seek_root, 1.0, FILTER_IGNORE, false);
+		return blend_input(0, p_time, false, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 	}
 }
 
@@ -719,96 +689,122 @@ String AnimationNodeTransition::get_input_caption(int p_input) const {
 	return inputs[p_input].name;
 }
 
-void AnimationNodeTransition::set_cross_fade_time(float p_fade) {
-	xfade = p_fade;
+void AnimationNodeTransition::set_xfade_time(double p_fade) {
+	xfade_time = p_fade;
 }
 
-float AnimationNodeTransition::get_cross_fade_time() const {
-	return xfade;
+double AnimationNodeTransition::get_xfade_time() const {
+	return xfade_time;
 }
 
-double AnimationNodeTransition::process(double p_time, bool p_seek, bool p_seek_root) {
-	int current = get_parameter(this->current);
-	int prev = get_parameter(this->prev);
-	int prev_current = get_parameter(this->prev_current);
+void AnimationNodeTransition::set_xfade_curve(const Ref<Curve> &p_curve) {
+	xfade_curve = p_curve;
+}
 
-	double time = get_parameter(this->time);
-	double prev_xfading = get_parameter(this->prev_xfading);
+Ref<Curve> AnimationNodeTransition::get_xfade_curve() const {
+	return xfade_curve;
+}
 
-	bool switched = current != prev_current;
+void AnimationNodeTransition::set_from_start(bool p_from_start) {
+	from_start = p_from_start;
+}
+
+bool AnimationNodeTransition::is_from_start() const {
+	return from_start;
+}
+
+double AnimationNodeTransition::process(double p_time, bool p_seek, bool p_is_external_seeking) {
+	int cur_current = get_parameter(current);
+	int cur_prev = get_parameter(prev);
+	int cur_prev_current = get_parameter(prev_current);
+
+	double cur_time = get_parameter(time);
+	double cur_prev_xfading = get_parameter(prev_xfading);
+
+	bool switched = cur_current != cur_prev_current;
 
 	if (switched) {
-		set_parameter(this->prev_current, current);
-		set_parameter(this->prev, prev_current);
+		set_parameter(prev_current, cur_current);
+		set_parameter(prev, cur_prev_current);
 
-		prev = prev_current;
-		prev_xfading = xfade;
-		time = 0;
+		cur_prev = cur_prev_current;
+		cur_prev_xfading = xfade_time;
+		cur_time = 0;
 		switched = true;
 	}
 
-	if (current < 0 || current >= enabled_inputs || prev >= enabled_inputs) {
+	if (cur_current < 0 || cur_current >= enabled_inputs || cur_prev >= enabled_inputs) {
 		return 0;
 	}
 
 	double rem = 0.0;
 
-	if (prev < 0) { // process current animation, check for transition
+	if (sync) {
+		for (int i = 0; i < enabled_inputs; i++) {
+			if (i != cur_current && i != cur_prev) {
+				blend_input(i, p_time, p_seek, p_is_external_seeking, 0, FILTER_IGNORE, true);
+			}
+		}
+	}
 
-		rem = blend_input(current, p_time, p_seek, p_seek_root, 1.0, FILTER_IGNORE, false);
+	if (cur_prev < 0) { // process current animation, check for transition
+
+		rem = blend_input(cur_current, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 
 		if (p_seek) {
-			time = p_time;
+			cur_time = p_time;
 		} else {
-			time += p_time;
+			cur_time += p_time;
 		}
 
-		if (inputs[current].auto_advance && rem <= xfade) {
-			set_parameter(this->current, (current + 1) % enabled_inputs);
+		if (inputs[cur_current].auto_advance && rem <= xfade_time) {
+			set_parameter(current, (cur_current + 1) % enabled_inputs);
 		}
 
 	} else { // cross-fading from prev to current
 
-		float blend = xfade == 0 ? 0 : (prev_xfading / xfade);
-
-		if (!p_seek && switched) { //just switched, seek to start of current
-
-			rem = blend_input(current, 0, true, p_seek_root, 1.0 - blend, FILTER_IGNORE, false);
-		} else {
-			rem = blend_input(current, p_time, p_seek, p_seek_root, 1.0 - blend, FILTER_IGNORE, false);
+		real_t blend = xfade_time == 0 ? 0 : (cur_prev_xfading / xfade_time);
+		if (xfade_curve.is_valid()) {
+			blend = xfade_curve->sample(blend);
 		}
 
-		if (p_seek) { // don't seek prev animation
-			blend_input(prev, 0, false, p_seek_root, blend, FILTER_IGNORE, false);
-			time = p_time;
+		// Blend values must be more than CMP_EPSILON to process discrete keys in edge.
+		real_t blend_inv = 1.0 - blend;
+		if (from_start && !p_seek && switched) { //just switched, seek to start of current
+			rem = blend_input(cur_current, 0, true, p_is_external_seeking, Math::is_zero_approx(blend_inv) ? CMP_EPSILON : blend_inv, FILTER_IGNORE, true);
 		} else {
-			blend_input(prev, p_time, false, p_seek_root, blend, FILTER_IGNORE, false);
-			time += p_time;
-			prev_xfading -= p_time;
-			if (prev_xfading < 0) {
-				set_parameter(this->prev, -1);
+			rem = blend_input(cur_current, p_time, p_seek, p_is_external_seeking, Math::is_zero_approx(blend_inv) ? CMP_EPSILON : blend_inv, FILTER_IGNORE, true);
+		}
+
+		if (p_seek) {
+			blend_input(cur_prev, p_time, true, p_is_external_seeking, Math::is_zero_approx(blend) ? CMP_EPSILON : blend, FILTER_IGNORE, true);
+			cur_time = p_time;
+		} else {
+			blend_input(cur_prev, p_time, false, p_is_external_seeking, Math::is_zero_approx(blend) ? CMP_EPSILON : blend, FILTER_IGNORE, true);
+			cur_time += p_time;
+			cur_prev_xfading -= p_time;
+			if (cur_prev_xfading < 0) {
+				set_parameter(prev, -1);
 			}
 		}
 	}
 
-	set_parameter(this->time, time);
-	set_parameter(this->prev_xfading, prev_xfading);
+	set_parameter(time, cur_time);
+	set_parameter(prev_xfading, cur_prev_xfading);
 
 	return rem;
 }
 
-void AnimationNodeTransition::_validate_property(PropertyInfo &property) const {
-	if (property.name.begins_with("input_")) {
-		String n = property.name.get_slicec('/', 0).get_slicec('_', 1);
+void AnimationNodeTransition::_validate_property(PropertyInfo &p_property) const {
+	if (p_property.name.begins_with("input_")) {
+		String n = p_property.name.get_slicec('/', 0).get_slicec('_', 1);
 		if (n != "count") {
 			int idx = n.to_int();
 			if (idx >= enabled_inputs) {
-				property.usage = PROPERTY_USAGE_NONE;
+				p_property.usage = PROPERTY_USAGE_NONE;
 			}
 		}
 	}
-
-	AnimationNode::_validate_property(property);
 }
 
 void AnimationNodeTransition::_bind_methods() {
@@ -821,11 +817,19 @@ void AnimationNodeTransition::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_input_caption", "input", "caption"), &AnimationNodeTransition::set_input_caption);
 	ClassDB::bind_method(D_METHOD("get_input_caption", "input"), &AnimationNodeTransition::get_input_caption);
 
-	ClassDB::bind_method(D_METHOD("set_cross_fade_time", "time"), &AnimationNodeTransition::set_cross_fade_time);
-	ClassDB::bind_method(D_METHOD("get_cross_fade_time"), &AnimationNodeTransition::get_cross_fade_time);
+	ClassDB::bind_method(D_METHOD("set_xfade_time", "time"), &AnimationNodeTransition::set_xfade_time);
+	ClassDB::bind_method(D_METHOD("get_xfade_time"), &AnimationNodeTransition::get_xfade_time);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "input_count", PROPERTY_HINT_RANGE, "0,64,1", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), "set_enabled_inputs", "get_enabled_inputs");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "xfade_time", PROPERTY_HINT_RANGE, "0,120,0.01,suffix:s"), "set_cross_fade_time", "get_cross_fade_time");
+	ClassDB::bind_method(D_METHOD("set_xfade_curve", "curve"), &AnimationNodeTransition::set_xfade_curve);
+	ClassDB::bind_method(D_METHOD("get_xfade_curve"), &AnimationNodeTransition::get_xfade_curve);
+
+	ClassDB::bind_method(D_METHOD("set_from_start", "from_start"), &AnimationNodeTransition::set_from_start);
+	ClassDB::bind_method(D_METHOD("is_from_start"), &AnimationNodeTransition::is_from_start);
+
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "enabled_inputs", PROPERTY_HINT_RANGE, "0,64,1", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), "set_enabled_inputs", "get_enabled_inputs");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "xfade_time", PROPERTY_HINT_RANGE, "0,120,0.01,suffix:s"), "set_xfade_time", "get_xfade_time");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "xfade_curve", PROPERTY_HINT_RESOURCE_TYPE, "Curve"), "set_xfade_curve", "get_xfade_curve");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "from_start"), "set_from_start", "is_from_start");
 
 	for (int i = 0; i < MAX_INPUTS; i++) {
 		ADD_PROPERTYI(PropertyInfo(Variant::STRING, "input_" + itos(i) + "/name", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_INTERNAL), "set_input_caption", "get_input_caption", i);
@@ -845,8 +849,8 @@ String AnimationNodeOutput::get_caption() const {
 	return "Output";
 }
 
-double AnimationNodeOutput::process(double p_time, bool p_seek, bool p_seek_root) {
-	return blend_input(0, p_time, p_seek, p_seek_root, 1.0);
+double AnimationNodeOutput::process(double p_time, bool p_seek, bool p_is_external_seeking) {
+	return blend_input(0, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 }
 
 AnimationNodeOutput::AnimationNodeOutput() {
@@ -869,8 +873,8 @@ void AnimationNodeBlendTree::add_node(const StringName &p_name, Ref<AnimationNod
 	emit_changed();
 	emit_signal(SNAME("tree_changed"));
 
-	p_node->connect("tree_changed", callable_mp(this, &AnimationNodeBlendTree::_tree_changed), varray(), CONNECT_REFERENCE_COUNTED);
-	p_node->connect("changed", callable_mp(this, &AnimationNodeBlendTree::_node_changed), varray(p_name), CONNECT_REFERENCE_COUNTED);
+	p_node->connect("tree_changed", callable_mp(this, &AnimationNodeBlendTree::_tree_changed), CONNECT_REFERENCE_COUNTED);
+	p_node->connect("changed", callable_mp(this, &AnimationNodeBlendTree::_node_changed).bind(p_name), CONNECT_REFERENCE_COUNTED);
 }
 
 Ref<AnimationNode> AnimationNodeBlendTree::get_node(const StringName &p_name) const {
@@ -970,7 +974,7 @@ void AnimationNodeBlendTree::rename_node(const StringName &p_name, const StringN
 		}
 	}
 	//connection must be done with new name
-	nodes[p_new_name].node->connect("changed", callable_mp(this, &AnimationNodeBlendTree::_node_changed), varray(p_new_name), CONNECT_REFERENCE_COUNTED);
+	nodes[p_new_name].node->connect("changed", callable_mp(this, &AnimationNodeBlendTree::_node_changed).bind(p_new_name), CONNECT_REFERENCE_COUNTED);
 
 	emit_signal(SNAME("tree_changed"));
 }
@@ -1058,9 +1062,9 @@ String AnimationNodeBlendTree::get_caption() const {
 	return "BlendTree";
 }
 
-double AnimationNodeBlendTree::process(double p_time, bool p_seek, bool p_seek_root) {
+double AnimationNodeBlendTree::process(double p_time, bool p_seek, bool p_is_external_seeking) {
 	Ref<AnimationNodeOutput> output = nodes[SceneStringNames::get_singleton()->output].node;
-	return _blend_node("output", nodes[SceneStringNames::get_singleton()->output].connections, this, output, p_time, p_seek, p_seek_root, 1.0);
+	return _blend_node("output", nodes[SceneStringNames::get_singleton()->output].connections, this, output, p_time, p_seek, p_is_external_seeking, 1.0, FILTER_IGNORE, true);
 }
 
 void AnimationNodeBlendTree::get_node_list(List<StringName> *r_list) {
@@ -1082,10 +1086,10 @@ Ref<AnimationNode> AnimationNodeBlendTree::get_child_by_name(const StringName &p
 }
 
 bool AnimationNodeBlendTree::_set(const StringName &p_name, const Variant &p_value) {
-	String name = p_name;
-	if (name.begins_with("nodes/")) {
-		String node_name = name.get_slicec('/', 1);
-		String what = name.get_slicec('/', 2);
+	String prop_name = p_name;
+	if (prop_name.begins_with("nodes/")) {
+		String node_name = prop_name.get_slicec('/', 1);
+		String what = prop_name.get_slicec('/', 2);
 
 		if (what == "node") {
 			Ref<AnimationNode> anode = p_value;
@@ -1101,7 +1105,7 @@ bool AnimationNodeBlendTree::_set(const StringName &p_name, const Variant &p_val
 			}
 			return true;
 		}
-	} else if (name == "node_connections") {
+	} else if (prop_name == "node_connections") {
 		Array conns = p_value;
 		ERR_FAIL_COND_V(conns.size() % 3 != 0, false);
 
@@ -1115,10 +1119,10 @@ bool AnimationNodeBlendTree::_set(const StringName &p_name, const Variant &p_val
 }
 
 bool AnimationNodeBlendTree::_get(const StringName &p_name, Variant &r_ret) const {
-	String name = p_name;
-	if (name.begins_with("nodes/")) {
-		String node_name = name.get_slicec('/', 1);
-		String what = name.get_slicec('/', 2);
+	String prop_name = p_name;
+	if (prop_name.begins_with("nodes/")) {
+		String node_name = prop_name.get_slicec('/', 1);
+		String what = prop_name.get_slicec('/', 2);
 
 		if (what == "node") {
 			if (nodes.has(node_name)) {
@@ -1133,7 +1137,7 @@ bool AnimationNodeBlendTree::_get(const StringName &p_name, Variant &r_ret) cons
 				return true;
 			}
 		}
-	} else if (name == "node_connections") {
+	} else if (prop_name == "node_connections") {
 		List<NodeConnection> nc;
 		get_node_connections(&nc);
 		Array conns;
@@ -1162,11 +1166,11 @@ void AnimationNodeBlendTree::_get_property_list(List<PropertyInfo> *p_list) cons
 	names.sort_custom<StringName::AlphCompare>();
 
 	for (const StringName &E : names) {
-		String name = E;
-		if (name != "output") {
-			p_list->push_back(PropertyInfo(Variant::OBJECT, "nodes/" + name + "/node", PROPERTY_HINT_RESOURCE_TYPE, "AnimationNode", PROPERTY_USAGE_NO_EDITOR));
+		String prop_name = E;
+		if (prop_name != "output") {
+			p_list->push_back(PropertyInfo(Variant::OBJECT, "nodes/" + prop_name + "/node", PROPERTY_HINT_RESOURCE_TYPE, "AnimationNode", PROPERTY_USAGE_NO_EDITOR));
 		}
-		p_list->push_back(PropertyInfo(Variant::VECTOR2, "nodes/" + name + "/position", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR));
+		p_list->push_back(PropertyInfo(Variant::VECTOR2, "nodes/" + prop_name + "/position", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR));
 	}
 
 	p_list->push_back(PropertyInfo(Variant::ARRAY, "node_connections", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR));
@@ -1187,6 +1191,7 @@ void AnimationNodeBlendTree::_tree_changed() {
 void AnimationNodeBlendTree::_node_changed(const StringName &p_node) {
 	ERR_FAIL_COND(!nodes.has(p_node));
 	nodes[p_node].connections.resize(nodes[p_node].node->get_input_count());
+	emit_signal(SNAME("node_changed"), p_node);
 }
 
 void AnimationNodeBlendTree::_bind_methods() {
@@ -1212,6 +1217,8 @@ void AnimationNodeBlendTree::_bind_methods() {
 	BIND_CONSTANT(CONNECTION_ERROR_NO_OUTPUT);
 	BIND_CONSTANT(CONNECTION_ERROR_SAME_NODE);
 	BIND_CONSTANT(CONNECTION_ERROR_CONNECTION_EXISTS);
+
+	ADD_SIGNAL(MethodInfo("node_changed", PropertyInfo(Variant::STRING_NAME, "node_name")));
 }
 
 void AnimationNodeBlendTree::_initialize_node_tree() {

@@ -30,9 +30,11 @@
 
 #include "export.h"
 
+#include "editor/export/editor_export.h"
 #include "export_plugin.h"
 
 void register_windows_exporter() {
+#ifndef ANDROID_ENABLED
 	EDITOR_DEF("export/windows/rcedit", "");
 	EditorSettings::get_singleton()->add_property_hint(PropertyInfo(Variant::STRING, "export/windows/rcedit", PROPERTY_HINT_GLOBAL_FILE, "*.exe"));
 #ifdef WINDOWS_ENABLED
@@ -45,15 +47,11 @@ void register_windows_exporter() {
 	EDITOR_DEF("export/windows/wine", "");
 	EditorSettings::get_singleton()->add_property_hint(PropertyInfo(Variant::STRING, "export/windows/wine", PROPERTY_HINT_GLOBAL_FILE));
 #endif
+#endif
 
 	Ref<EditorExportPlatformWindows> platform;
 	platform.instantiate();
-
-	Ref<Image> img = memnew(Image(_windows_logo));
-	Ref<ImageTexture> logo;
-	logo.instantiate();
-	logo->create_from_image(img);
-	platform->set_logo(logo);
+	platform->set_logo(ImageTexture::create_from_image(memnew(Image(_windows_logo))));
 	platform->set_name("Windows Desktop");
 	platform->set_os_name("Windows");
 

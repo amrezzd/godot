@@ -100,7 +100,7 @@ void VoxelGIEditorPlugin::_notification(int p_what) {
 				return;
 			}
 
-			bake->set_tooltip(text);
+			bake->set_tooltip_text(text);
 		} break;
 	}
 }
@@ -139,7 +139,7 @@ void VoxelGIEditorPlugin::_voxel_gi_save_path_and_bake(const String &p_path) {
 	if (voxel_gi) {
 		voxel_gi->bake();
 		ERR_FAIL_COND(voxel_gi->get_probe_data().is_null());
-		ResourceSaver::save(p_path, voxel_gi->get_probe_data(), ResourceSaver::FLAG_CHANGE_PATH);
+		ResourceSaver::save(voxel_gi->get_probe_data(), p_path, ResourceSaver::FLAG_CHANGE_PATH);
 	}
 }
 

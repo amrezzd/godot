@@ -35,8 +35,12 @@
 #include "editor/editor_file_dialog.h"
 #include "editor/editor_node.h"
 #include "scene/2d/cpu_particles_2d.h"
+#include "scene/gui/check_box.h"
+#include "scene/gui/menu_button.h"
+#include "scene/gui/option_button.h"
 #include "scene/gui/separator.h"
-#include "scene/resources/particles_material.h"
+#include "scene/gui/spin_box.h"
+#include "scene/resources/particle_process_material.h"
 
 void CPUParticles2DEditorPlugin::edit(Object *p_object) {
 	particles = Object::cast_to<CPUParticles2D>(p_object);
@@ -109,8 +113,8 @@ void CPUParticles2DEditorPlugin::_generate_emission_mask() {
 	int vpc = 0;
 
 	{
-		Vector<uint8_t> data = img->get_data();
-		const uint8_t *r = data.ptr();
+		Vector<uint8_t> img_data = img->get_data();
+		const uint8_t *r = img_data.ptr();
 
 		for (int i = 0; i < s.width; i++) {
 			for (int j = 0; j < s.height; j++) {
@@ -238,7 +242,6 @@ void CPUParticles2DEditorPlugin::_bind_methods() {
 
 CPUParticles2DEditorPlugin::CPUParticles2DEditorPlugin() {
 	particles = nullptr;
-	undo_redo = EditorNode::get_singleton()->get_undo_redo();
 
 	toolbar = memnew(HBoxContainer);
 	add_control_to_container(CONTAINER_CANVAS_EDITOR_MENU, toolbar);
@@ -257,7 +260,7 @@ CPUParticles2DEditorPlugin::CPUParticles2DEditorPlugin() {
 	List<String> ext;
 	ImageLoader::get_recognized_extensions(&ext);
 	for (const String &E : ext) {
-		file->add_filter("*." + E + "; " + E.to_upper());
+		file->add_filter("*." + E, E.to_upper());
 	}
 	file->set_file_mode(EditorFileDialog::FILE_MODE_OPEN_FILE);
 	toolbar->add_child(file);

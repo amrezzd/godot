@@ -174,6 +174,28 @@ void VideoStreamPlayer::_notification(int p_notification) {
 			Size2 s = expand ? get_size() : texture->get_size();
 			draw_texture_rect(texture, Rect2(Point2(), s), false);
 		} break;
+
+		case NOTIFICATION_PAUSED: {
+			if (is_playing() && !is_paused()) {
+				paused_from_tree = true;
+				if (playback.is_valid()) {
+					playback->set_paused(true);
+					set_process_internal(false);
+				}
+				last_audio_time = 0;
+			}
+		} break;
+
+		case NOTIFICATION_UNPAUSED: {
+			if (paused_from_tree) {
+				paused_from_tree = false;
+				if (playback.is_valid()) {
+					playback->set_paused(false);
+					set_process_internal(true);
+				}
+				last_audio_time = 0;
+			}
+		} break;
 	}
 }
 
@@ -186,8 +208,12 @@ Size2 VideoStreamPlayer::get_minimum_size() const {
 }
 
 void VideoStreamPlayer::set_expand(bool p_expand) {
+	if (expand == p_expand) {
+		return;
+	}
+
 	expand = p_expand;
-	update();
+	queue_redraw();
 	update_minimum_size();
 }
 
@@ -203,7 +229,7 @@ void VideoStreamPlayer::set_stream(const Ref<VideoStream> &p_stream) {
 	stream = p_stream;
 	if (stream.is_valid()) {
 		stream->set_audio_track(audio_track);
-		playback = stream->instance_playback();
+		playback = stream->instantiate_playback();
 	} else {
 		playback = Ref<VideoStreamPlayback>();
 	}
@@ -235,7 +261,7 @@ void VideoStreamPlayer::set_stream(const Ref<VideoStream> &p_stream) {
 		AudioServer::get_singleton()->unlock();
 	}
 
-	update();
+	queue_redraw();
 
 	if (!expand) {
 		update_minimum_size();
@@ -255,6 +281,10 @@ void VideoStreamPlayer::play() {
 	playback->play();
 	set_process_internal(true);
 	last_audio_time = 0;
+
+	if (!can_process()) {
+		_notification(NOTIFICATION_PAUSED);
+	}
 }
 
 void VideoStreamPlayer::stop() {
@@ -280,7 +310,19 @@ bool VideoStreamPlayer::is_playing() const {
 }
 
 void VideoStreamPlayer::set_paused(bool p_paused) {
+	if (paused == p_paused) {
+		return;
+	}
+
 	paused = p_paused;
+	if (!p_paused && !can_process()) {
+		paused_from_tree = true;
+		return;
+	} else if (p_paused && paused_from_tree) {
+		paused_from_tree = false;
+		return;
+	}
+
 	if (playback.is_valid()) {
 		playback->set_paused(p_paused);
 		set_process_internal(!p_paused);
@@ -320,7 +362,7 @@ void VideoStreamPlayer::set_volume_db(float p_db) {
 	if (p_db < -79) {
 		set_volume(0);
 	} else {
-		set_volume(Math::db2linear(p_db));
+		set_volume(Math::db_to_linear(p_db));
 	}
 }
 
@@ -328,7 +370,7 @@ float VideoStreamPlayer::get_volume_db() const {
 	if (volume == 0) {
 		return -80;
 	} else {
-		return Math::linear2db(volume);
+		return Math::linear_to_db(volume);
 	}
 }
 
@@ -339,14 +381,14 @@ String VideoStreamPlayer::get_stream_name() const {
 	return stream->get_name();
 }
 
-float VideoStreamPlayer::get_stream_position() const {
+double VideoStreamPlayer::get_stream_position() const {
 	if (playback.is_null()) {
 		return 0;
 	}
 	return playback->get_playback_position();
 }
 
-void VideoStreamPlayer::set_stream_position(float p_position) {
+void VideoStreamPlayer::set_stream_position(double p_position) {
 	if (playback.is_valid()) {
 		playback->seek(p_position);
 	}

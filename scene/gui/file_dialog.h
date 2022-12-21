@@ -101,11 +101,32 @@ private:
 	void _push_history();
 
 	bool mode_overrides_title = true;
+	String root_subfolder;
+	String root_prefix;
 
 	static bool default_show_hidden_files;
 	bool show_hidden_files = false;
 
 	bool invalidated = true;
+
+	struct ThemeCache {
+		Ref<Texture2D> parent_folder;
+		Ref<Texture2D> forward_folder;
+		Ref<Texture2D> back_folder;
+		Ref<Texture2D> reload;
+		Ref<Texture2D> toggle_hidden;
+		Ref<Texture2D> folder;
+		Ref<Texture2D> file;
+
+		Color folder_icon_color;
+		Color file_icon_color;
+		Color file_disabled_color;
+
+		Color icon_normal_color;
+		Color icon_hover_color;
+		Color icon_focus_color;
+		Color icon_pressed_color;
+	} theme_cache;
 
 	void update_dir();
 	void update_file_name();
@@ -131,6 +152,7 @@ private:
 	void _go_back();
 	void _go_forward();
 
+	void _change_dir(const String &p_new_dir);
 	void _update_drives(bool p_select = true);
 
 	virtual void shortcut_input(const Ref<InputEvent> &p_event) override;
@@ -140,7 +162,7 @@ private:
 	virtual void _post_popup() override;
 
 protected:
-	void _theme_changed();
+	virtual void _update_theme_item_cache() override;
 
 	void _notification(int p_what);
 	static void _bind_methods();
@@ -148,7 +170,7 @@ protected:
 public:
 	void popup_file_dialog();
 	void clear_filters();
-	void add_filter(const String &p_filter);
+	void add_filter(const String &p_filter, const String &p_description = "");
 	void set_filters(const Vector<String> &p_filters);
 	Vector<String> get_filters() const;
 
@@ -161,6 +183,9 @@ public:
 	void set_current_dir(const String &p_dir);
 	void set_current_file(const String &p_file);
 	void set_current_path(const String &p_path);
+
+	void set_root_subfolder(const String &p_root);
+	String get_root_subfolder() const;
 
 	void set_mode_overrides_title(bool p_override);
 	bool is_mode_overriding_title() const;
@@ -190,4 +215,4 @@ public:
 VARIANT_ENUM_CAST(FileDialog::FileMode);
 VARIANT_ENUM_CAST(FileDialog::Access);
 
-#endif
+#endif // FILE_DIALOG_H

@@ -28,12 +28,16 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef MESH_INSTANCE_EDITOR_PLUGIN_H
-#define MESH_INSTANCE_EDITOR_PLUGIN_H
+#ifndef MESH_INSTANCE_3D_EDITOR_PLUGIN_H
+#define MESH_INSTANCE_3D_EDITOR_PLUGIN_H
 
 #include "editor/editor_plugin.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/gui/spin_box.h"
+
+class AcceptDialog;
+class ConfirmationDialog;
+class MenuButton;
 
 class MeshInstance3DEditor : public Control {
 	GDCLASS(MeshInstance3DEditor, Control);
@@ -46,6 +50,7 @@ class MeshInstance3DEditor : public Control {
 		MENU_OPTION_CREATE_MULTIPLE_CONVEX_COLLISION_SHAPES,
 		MENU_OPTION_CREATE_NAVMESH,
 		MENU_OPTION_CREATE_OUTLINE_MESH,
+		MENU_OPTION_CREATE_DEBUG_TANGENTS,
 		MENU_OPTION_CREATE_UV2,
 		MENU_OPTION_DEBUG_UV1,
 		MENU_OPTION_DEBUG_UV2,
@@ -97,4 +102,4 @@ public:
 	~MeshInstance3DEditorPlugin();
 };
 
-#endif // MESH_EDITOR_PLUGIN_H
+#endif // MESH_INSTANCE_3D_EDITOR_PLUGIN_H

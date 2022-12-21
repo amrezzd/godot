@@ -32,19 +32,21 @@
 #define CANVAS_ITEM_EDITOR_PLUGIN_H
 
 #include "editor/editor_plugin.h"
-#include "editor/editor_zoom_widget.h"
+#include "scene/gui/base_button.h"
 #include "scene/gui/box_container.h"
-#include "scene/gui/check_box.h"
-#include "scene/gui/label.h"
-#include "scene/gui/panel_container.h"
-#include "scene/gui/spin_box.h"
-#include "scene/gui/split_container.h"
-#include "scene/gui/texture_rect.h"
-#include "scene/main/canvas_item.h"
 
-class EditorData;
+class AcceptDialog;
 class CanvasItemEditorViewport;
+class ConfirmationDialog;
+class EditorData;
+class EditorZoomWidget;
+class HScrollBar;
+class HSplitContainer;
+class MenuButton;
+class PanelContainer;
 class ViewPanner;
+class VScrollBar;
+class VSplitContainer;
 
 class CanvasItemEditorSelectedItem : public Object {
 	GDCLASS(CanvasItemEditorSelectedItem, Object);
@@ -188,11 +190,10 @@ private:
 
 	HScrollBar *h_scroll = nullptr;
 	VScrollBar *v_scroll = nullptr;
-	HBoxContainer *hb = nullptr;
 	// Used for secondary menu items which are displayed depending on the currently selected node
 	// (such as MeshInstance's "Mesh" menu).
-	PanelContainer *context_menu_container = nullptr;
-	HBoxContainer *hbc_context_menu = nullptr;
+	PanelContainer *context_menu_panel = nullptr;
+	HBoxContainer *context_menu_hbox = nullptr;
 
 	Transform2D transform;
 	GridVisibility grid_visibility = GRID_VISIBILITY_SHOW_WHEN_SNAPPING;
@@ -215,8 +216,8 @@ private:
 	int primary_grid_steps = 8;
 	int grid_step_multiplier = 0;
 
-	real_t snap_rotation_step = 0.0;
-	real_t snap_rotation_offset = Math::deg2rad(15.0);
+	real_t snap_rotation_step = Math::deg_to_rad(15.0);
+	real_t snap_rotation_offset = 0.0;
 	real_t snap_scale_step = 0.1f;
 	bool smart_snap_active = false;
 	bool grid_snap_active = false;
@@ -337,16 +338,17 @@ private:
 
 	Point2 drag_start_origin;
 	DragType drag_type = DRAG_NONE;
-	Point2 drag_from = Vector2();
-	Point2 drag_to = Vector2();
+	Point2 drag_from;
+	Point2 drag_to;
 	Point2 drag_rotation_center;
 	List<CanvasItem *> drag_selection;
 	int dragged_guide_index = -1;
-	Point2 dragged_guide_pos = Point2();
+	Point2 dragged_guide_pos;
 	bool is_hovering_h_guide = false;
 	bool is_hovering_v_guide = false;
 
 	bool updating_value_dialog = false;
+	Transform2D original_transform;
 
 	Point2 box_selecting_to;
 
@@ -400,8 +402,6 @@ private:
 	void _prepare_grid_menu();
 	void _on_grid_menu_id_pressed(int p_id);
 
-	UndoRedo *undo_redo = nullptr;
-
 	List<CanvasItem *> _get_edited_canvas_items(bool retrieve_locked = false, bool remove_canvas_item_if_parent_in_selection = true);
 	Rect2 _get_encompassing_rect_from_list(List<CanvasItem *> p_list);
 	void _expand_encompassing_rect_using_children(Rect2 &r_rect, const Node *p_node, bool &r_first, const Transform2D &p_parent_xform = Transform2D(), const Transform2D &p_canvas_xform = Transform2D(), bool include_locked_nodes = true);
@@ -433,6 +433,7 @@ private:
 	void _draw_invisible_nodes_positions(Node *p_node, const Transform2D &p_parent_xform = Transform2D(), const Transform2D &p_canvas_xform = Transform2D());
 	void _draw_locks_and_groups(Node *p_node, const Transform2D &p_parent_xform = Transform2D(), const Transform2D &p_canvas_xform = Transform2D());
 	void _draw_hover();
+	void _draw_transform_message();
 
 	void _draw_viewport();
 
@@ -453,8 +454,8 @@ private:
 	void _update_cursor();
 
 	void _selection_changed();
-
 	void _focus_selection(int p_op);
+	void _reset_drag();
 
 	SnapTarget snap_target[2];
 	Transform2D snap_transform;
@@ -501,8 +502,6 @@ protected:
 
 	static void _bind_methods();
 
-	HBoxContainer *get_panel_hb() { return hb; }
-
 	static CanvasItemEditor *singleton;
 
 public:
@@ -548,7 +547,6 @@ public:
 	Tool get_current_tool() { return tool; }
 	void set_current_tool(Tool p_tool);
 
-	void set_undo_redo(UndoRedo *p_undo_redo) { undo_redo = p_undo_redo; }
 	void edit(CanvasItem *p_canvas_item);
 
 	void focus_selection();
@@ -562,6 +560,9 @@ class CanvasItemEditorPlugin : public EditorPlugin {
 	GDCLASS(CanvasItemEditorPlugin, EditorPlugin);
 
 	CanvasItemEditor *canvas_item_editor = nullptr;
+
+protected:
+	void _notification(int p_what);
 
 public:
 	virtual String get_name() const override { return "2D"; }
@@ -590,7 +591,6 @@ class CanvasItemEditorViewport : public Control {
 	Node *target_node = nullptr;
 	Point2 drop_pos;
 
-	EditorData *editor_data = nullptr;
 	CanvasItemEditor *canvas_item_editor = nullptr;
 	Control *preview_node = nullptr;
 	AcceptDialog *accept = nullptr;
@@ -618,8 +618,6 @@ class CanvasItemEditorViewport : public Control {
 	void _show_resource_type_selector();
 	void _update_theme();
 
-	static void _bind_methods();
-
 protected:
 	void _notification(int p_what);
 
@@ -631,4 +629,4 @@ public:
 	~CanvasItemEditorViewport();
 };
 
-#endif //CANVAS_ITEM_EDITOR_PLUGIN_H
+#endif // CANVAS_ITEM_EDITOR_PLUGIN_H

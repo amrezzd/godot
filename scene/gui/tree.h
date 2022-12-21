@@ -63,7 +63,6 @@ private:
 		String text;
 		String suffix;
 		Ref<TextLine> text_buf;
-		Dictionary opentype_features;
 		String language;
 		TextServer::StructuredTextParser st_parser = TextServer::STRUCTURED_TEXT_DEFAULT;
 		Array st_args;
@@ -174,6 +173,8 @@ private:
 		}
 	}
 
+	bool _is_any_collapsed(bool p_only_visible);
+
 protected:
 	static void _bind_methods();
 
@@ -220,10 +221,6 @@ public:
 	void set_text_direction(int p_column, Control::TextDirection p_text_direction);
 	Control::TextDirection get_text_direction(int p_column) const;
 
-	void set_opentype_feature(int p_column, const String &p_name, int p_value);
-	int get_opentype_feature(int p_column, const String &p_name) const;
-	void clear_opentype_features(int p_column);
-
 	void set_structured_text_bidi_override(int p_column, TextServer::StructuredTextParser p_parser);
 	TextServer::StructuredTextParser get_structured_text_bidi_override(int p_column) const;
 
@@ -250,7 +247,7 @@ public:
 
 	void add_button(int p_column, const Ref<Texture2D> &p_button, int p_id = -1, bool p_disabled = false, const String &p_tooltip = "");
 	int get_button_count(int p_column) const;
-	String get_button_tooltip(int p_column, int p_idx) const;
+	String get_button_tooltip_text(int p_column, int p_idx) const;
 	Ref<Texture2D> get_button(int p_column, int p_idx) const;
 	int get_button_id(int p_column, int p_idx) const;
 	void erase_button(int p_column, int p_idx);
@@ -276,6 +273,9 @@ public:
 
 	void set_collapsed(bool p_collapsed);
 	bool is_collapsed();
+
+	void set_collapsed_recursive(bool p_collapsed);
+	bool is_any_collapsed(bool p_only_visible = false);
 
 	void set_visible(bool p_visible);
 	bool is_visible();
@@ -313,8 +313,8 @@ public:
 	void set_custom_as_button(int p_column, bool p_button);
 	bool is_custom_set_as_button(int p_column) const;
 
-	void set_tooltip(int p_column, const String &p_tooltip);
-	String get_tooltip(int p_column) const;
+	void set_tooltip_text(int p_column, const String &p_tooltip);
+	String get_tooltip_text(int p_column) const;
 
 	void set_text_alignment(int p_column, HorizontalAlignment p_alignment);
 	HorizontalAlignment get_text_alignment(int p_column) const;
@@ -344,8 +344,15 @@ public:
 	TreeItem *get_child(int p_idx);
 	int get_visible_child_count();
 	int get_child_count();
-	Array get_children();
+	TypedArray<TreeItem> get_children();
 	int get_index();
+
+#ifdef DEV_ENABLED
+	// This debugging code can be removed once the current refactoring of this class is complete.
+	void validate_cache() const;
+#else
+	void validate_cache() const {}
+#endif
 
 	void move_before(TreeItem *p_item);
 	void move_after(TreeItem *p_item);
@@ -429,7 +436,6 @@ private:
 		bool clip_content = false;
 		String title;
 		Ref<TextLine> text_buf;
-		Dictionary opentype_features;
 		String language;
 		Control::TextDirection text_direction = Control::TEXT_DIRECTION_INHERITED;
 		ColumnInfo() {
@@ -481,12 +487,15 @@ private:
 
 	void propagate_set_columns(TreeItem *p_item);
 
-	struct Cache {
+	struct ThemeCache {
+		Ref<StyleBox> panel_style;
+		Ref<StyleBox> focus_style;
+
 		Ref<Font> font;
 		Ref<Font> tb_font;
 		int font_size = 0;
 		int tb_font_size = 0;
-		Ref<StyleBox> bg;
+
 		Ref<StyleBox> selected;
 		Ref<StyleBox> selected_focus;
 		Ref<StyleBox> cursor;
@@ -504,8 +513,9 @@ private:
 		Ref<Texture2D> checked;
 		Ref<Texture2D> unchecked;
 		Ref<Texture2D> indeterminate;
-		Ref<Texture2D> arrow_collapsed;
 		Ref<Texture2D> arrow;
+		Ref<Texture2D> arrow_collapsed;
+		Ref<Texture2D> arrow_collapsed_mirrored;
 		Ref<Texture2D> select_arrow;
 		Ref<Texture2D> updown;
 
@@ -521,8 +531,8 @@ private:
 
 		float base_scale = 1.0;
 
-		int hseparation = 0;
-		int vseparation = 0;
+		int h_separation = 0;
+		int v_separation = 0;
 		int item_margin = 0;
 		int button_margin = 0;
 		Point2 offset;
@@ -535,7 +545,9 @@ private:
 		int scroll_border = 0;
 		int scroll_speed = 0;
 		int font_outline_size = 0;
+	} theme_cache;
 
+	struct Cache {
 		enum ClickType {
 			CLICK_NONE,
 			CLICK_TITLE,
@@ -558,7 +570,6 @@ private:
 		Point2i text_editor_position;
 
 		bool rtl = false;
-
 	} cache;
 
 	int _get_title_button_height() const;
@@ -571,7 +582,6 @@ private:
 	bool v_scroll_enabled = true;
 
 	Size2 get_internal_min_size() const;
-	void update_cache();
 	void update_scrollbars();
 
 	Rect2 search_item_rect(TreeItem *p_from, TreeItem *p_item);
@@ -608,6 +618,8 @@ private:
 
 	bool hide_folding = false;
 
+	bool enable_recursive_folding = true;
+
 	int _count_selected_items(TreeItem *p_from) const;
 	bool _is_branch_selected(TreeItem *p_from) const;
 	bool _is_sibling_branch_selected(TreeItem *p_from) const;
@@ -616,7 +628,11 @@ private:
 	void _go_down();
 	void _go_up();
 
+	bool _scroll(bool p_horizontal, float p_pages);
+
 protected:
+	virtual void _update_theme_item_cache() override;
+
 	static void _bind_methods();
 
 public:
@@ -650,6 +666,7 @@ public:
 	bool is_root_hidden() const;
 	TreeItem *get_next_selected(TreeItem *p_item);
 	TreeItem *get_selected() const;
+	void set_selected(TreeItem *p_item, int p_column = 0);
 	int get_selected_column() const;
 	int get_pressed_button() const;
 	void set_select_mode(SelectMode p_mode);
@@ -665,10 +682,6 @@ public:
 
 	void set_column_title_direction(int p_column, Control::TextDirection p_text_direction);
 	Control::TextDirection get_column_title_direction(int p_column) const;
-
-	void set_column_title_opentype_feature(int p_column, const String &p_name, int p_value);
-	int get_column_title_opentype_feature(int p_column, const String &p_name) const;
-	void clear_column_title_opentype_features(int p_column);
 
 	void set_column_title_language(int p_column, const String &p_language);
 	String get_column_title_language(int p_column) const;
@@ -707,6 +720,9 @@ public:
 	void set_hide_folding(bool p_hide);
 	bool is_folding_hidden() const;
 
+	void set_enable_recursive_folding(bool p_enable);
+	bool is_recursive_folding_enabled() const;
+
 	void set_drop_mode_flags(int p_flags);
 	int get_drop_mode_flags() const;
 
@@ -727,4 +743,5 @@ public:
 
 VARIANT_ENUM_CAST(Tree::SelectMode);
 VARIANT_ENUM_CAST(Tree::DropModeFlags);
-#endif
+
+#endif // TREE_H

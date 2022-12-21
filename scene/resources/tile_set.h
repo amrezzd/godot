@@ -36,10 +36,10 @@
 #include "core/templates/local_vector.h"
 #include "core/templates/rb_set.h"
 #include "scene/2d/light_occluder_2d.h"
-#include "scene/2d/navigation_region_2d.h"
 #include "scene/main/canvas_item.h"
 #include "scene/resources/concave_polygon_shape_2d.h"
 #include "scene/resources/convex_polygon_shape_2d.h"
+#include "scene/resources/navigation_polygon.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/physics_material.h"
 #include "scene/resources/shape_2d.h"
@@ -117,7 +117,7 @@ union TileMapCell {
 class TileMapPattern : public Resource {
 	GDCLASS(TileMapPattern, Resource);
 
-	Vector2i size;
+	Size2i size;
 	HashMap<Vector2i, TileMapCell> pattern;
 
 	void _set_tile_data(const Vector<int> &p_data);
@@ -140,8 +140,8 @@ public:
 
 	TypedArray<Vector2i> get_used_cells() const;
 
-	Vector2i get_size() const;
-	void set_size(const Vector2i &p_size);
+	Size2i get_size() const;
+	void set_size(const Size2i &p_size);
 	bool is_empty() const;
 
 	void clear();
@@ -164,7 +164,7 @@ private:
 		String name;
 		Ref<Texture2D> texture;
 		Vector2 tex_offset;
-		Ref<ShaderMaterial> material;
+		Ref<Material> material;
 		Rect2 region;
 		int tile_mode = 0;
 		Color modulate = Color(1, 1, 1);
@@ -277,6 +277,9 @@ public:
 
 		bool operator<(const TerrainsPattern &p_terrains_pattern) const;
 		bool operator==(const TerrainsPattern &p_terrains_pattern) const;
+		bool operator!=(const TerrainsPattern &p_terrains_pattern) const {
+			return !operator==(p_terrains_pattern);
+		};
 
 		void set_terrain(int p_terrain);
 		int get_terrain() const;
@@ -295,7 +298,7 @@ protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	void _get_property_list(List<PropertyInfo> *p_list) const;
-	virtual void _validate_property(PropertyInfo &property) const override;
+	void _validate_property(PropertyInfo &p_property) const;
 
 private:
 	// --- TileSet data ---
@@ -479,10 +482,10 @@ public:
 	void move_custom_data_layer(int p_from_index, int p_to_pos);
 	void remove_custom_data_layer(int p_index);
 	int get_custom_data_layer_by_name(String p_value) const;
-	void set_custom_data_name(int p_layer_id, String p_value);
-	String get_custom_data_name(int p_layer_id) const;
-	void set_custom_data_type(int p_layer_id, Variant::Type p_value);
-	Variant::Type get_custom_data_type(int p_layer_id) const;
+	void set_custom_data_layer_name(int p_layer_id, String p_value);
+	String get_custom_data_layer_name(int p_layer_id) const;
+	void set_custom_data_layer_type(int p_layer_id, Variant::Type p_value);
+	Variant::Type get_custom_data_layer_type(int p_layer_id) const;
 
 	// Tiles proxies.
 	void set_source_level_tile_proxy(int p_source_from, int p_source_to);
@@ -569,7 +572,7 @@ public:
 	virtual void add_custom_data_layer(int p_index){};
 	virtual void move_custom_data_layer(int p_from_index, int p_to_pos){};
 	virtual void remove_custom_data_layer(int p_index){};
-	virtual void reset_state() override{};
+	virtual void reset_state() override;
 
 	// Tiles.
 	virtual int get_tiles_count() const = 0;
@@ -782,8 +785,8 @@ private:
 	bool flip_h = false;
 	bool flip_v = false;
 	bool transpose = false;
-	Vector2i tex_offset = Vector2i();
-	Ref<ShaderMaterial> material = Ref<ShaderMaterial>();
+	Vector2i tex_offset;
+	Ref<Material> material = Ref<Material>();
 	Color modulate = Color(1.0, 1.0, 1.0, 1.0);
 	int z_index = 0;
 	int y_sort_origin = 0;
@@ -847,7 +850,6 @@ public:
 	void add_custom_data_layer(int p_index);
 	void move_custom_data_layer(int p_from_index, int p_to_pos);
 	void remove_custom_data_layer(int p_index);
-	void reset_state();
 	void set_allow_transform(bool p_allow_transform);
 	bool is_allowing_transform() const;
 
@@ -864,8 +866,8 @@ public:
 
 	void set_texture_offset(Vector2i p_texture_offset);
 	Vector2i get_texture_offset() const;
-	void set_material(Ref<ShaderMaterial> p_material);
-	Ref<ShaderMaterial> get_material() const;
+	void set_material(Ref<Material> p_material);
+	Ref<Material> get_material() const;
 	void set_modulate(Color p_modulate);
 	Color get_modulate() const;
 	void set_z_index(int p_z_index);

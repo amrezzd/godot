@@ -30,6 +30,7 @@
 
 #include "audio_stream_player_3d.h"
 
+#include "core/config/project_settings.h"
 #include "scene/3d/area_3d.h"
 #include "scene/3d/audio_listener_3d.h"
 #include "scene/3d/camera_3d.h"
@@ -148,7 +149,7 @@ void AudioStreamPlayer3D::_calc_reverb_vol(Area3D *area, Vector3 listener_area_p
 
 	if (uniformity > 0.0) {
 		float distance = listener_area_pos.length();
-		float attenuation = Math::db2linear(_get_attenuation_db(distance));
+		float attenuation = Math::db_to_linear(_get_attenuation_db(distance));
 
 		// Determine the fraction of sound that would come from each speaker if they were all driven uniformly.
 		float center_val[3] = { 0.5f, 0.25f, 0.16666f };
@@ -212,12 +213,12 @@ float AudioStreamPlayer3D::_get_attenuation_db(float p_distance) const {
 	float att = 0;
 	switch (attenuation_model) {
 		case ATTENUATION_INVERSE_DISTANCE: {
-			att = Math::linear2db(1.0 / ((p_distance / unit_size) + CMP_EPSILON));
+			att = Math::linear_to_db(1.0 / ((p_distance / unit_size) + CMP_EPSILON));
 		} break;
 		case ATTENUATION_INVERSE_SQUARE_DISTANCE: {
 			float d = (p_distance / unit_size);
 			d *= d;
-			att = Math::linear2db(1.0 / (d + CMP_EPSILON));
+			att = Math::linear_to_db(1.0 / (d + CMP_EPSILON));
 		} break;
 		case ATTENUATION_LOGARITHMIC: {
 			att = -20 * Math::log(p_distance / unit_size + CMP_EPSILON);
@@ -230,7 +231,7 @@ float AudioStreamPlayer3D::_get_attenuation_db(float p_distance) const {
 		}
 	}
 
-	att += unit_db;
+	att += volume_db;
 	if (att > max_db) {
 		att = max_db;
 	}
@@ -246,11 +247,16 @@ void AudioStreamPlayer3D::_notification(int p_what) {
 			if (autoplay && !Engine::get_singleton()->is_editor_hint()) {
 				play();
 			}
+			set_stream_paused(false);
 		} break;
 
 		case NOTIFICATION_EXIT_TREE: {
-			stop();
+			set_stream_paused(true);
 			AudioServer::get_singleton()->remove_listener_changed_callback(_listener_changed_cb, this);
+		} break;
+
+		case NOTIFICATION_PREDELETE: {
+			stop();
 		} break;
 
 		case NOTIFICATION_PAUSED: {
@@ -280,7 +286,7 @@ void AudioStreamPlayer3D::_notification(int p_what) {
 
 			if (setplay.get() >= 0 && stream.is_valid()) {
 				active.set();
-				Ref<AudioStreamPlayback> new_playback = stream->instance_playback();
+				Ref<AudioStreamPlayback> new_playback = stream->instantiate_playback();
 				ERR_FAIL_COND_MSG(new_playback.is_null(), "Failed to instantiate playback.");
 				HashMap<StringName, Vector<AudioFrame>> bus_map;
 				bus_map[_get_actual_bus()] = volume_vector;
@@ -442,7 +448,7 @@ Vector<AudioFrame> AudioStreamPlayer3D::_update_panning() {
 			}
 		}
 
-		float multiplier = Math::db2linear(_get_attenuation_db(dist));
+		float multiplier = Math::db_to_linear(_get_attenuation_db(dist));
 		if (max_distance > 0) {
 			multiplier *= MAX(0, 1.0 - (dist / max_distance));
 		}
@@ -452,19 +458,20 @@ Vector<AudioFrame> AudioStreamPlayer3D::_update_panning() {
 		if (emission_angle_enabled) {
 			Vector3 listenertopos = global_pos - listener_node->get_global_transform().origin;
 			float c = listenertopos.normalized().dot(get_global_transform().basis.get_column(2).normalized()); //it's z negative
-			float angle = Math::rad2deg(Math::acos(c));
+			float angle = Math::rad_to_deg(Math::acos(c));
 			if (angle > emission_angle) {
 				db_att -= -emission_angle_filter_attenuation_db;
 			}
 		}
 
-		linear_attenuation = Math::db2linear(db_att);
+		linear_attenuation = Math::db_to_linear(db_att);
 		for (Ref<AudioStreamPlayback> &playback : stream_playbacks) {
 			AudioServer::get_singleton()->set_playback_highshelf_params(playback, linear_attenuation, attenuation_filter_cutoff_hz);
 		}
-		//TODO: The lower the second parameter (tightness) the more the sound will "enclose" the listener (more undirected / playing from
-		//      speakers not facing the source) - this could be made distance dependent.
-		_calc_output_vol(local_pos.normalized(), 4.0, output_volume_vector);
+		// Bake in a constant factor here to allow the project setting defaults for 2d and 3d to be normalized to 1.0.
+		float tightness = cached_global_panning_strength * 2.0f;
+		tightness *= panning_strength;
+		_calc_output_vol(local_pos.normalized(), tightness, output_volume_vector);
 
 		for (unsigned int k = 0; k < 4; k++) {
 			output_volume_vector.write[k] = multiplier * output_volume_vector[k];
@@ -478,7 +485,7 @@ Vector<AudioFrame> AudioStreamPlayer3D::_update_panning() {
 			}
 
 			if (area->is_using_reverb_bus()) {
-				StringName reverb_bus_name = area->get_reverb_bus();
+				StringName reverb_bus_name = area->get_reverb_bus_name();
 				Vector<AudioFrame> reverb_vol;
 				_calc_reverb_vol(area, listener_area_pos, output_volume_vector, reverb_vol);
 				bus_volumes[reverb_bus_name] = reverb_vol;
@@ -531,12 +538,12 @@ Ref<AudioStream> AudioStreamPlayer3D::get_stream() const {
 	return stream;
 }
 
-void AudioStreamPlayer3D::set_unit_db(float p_volume) {
-	unit_db = p_volume;
+void AudioStreamPlayer3D::set_volume_db(float p_volume) {
+	volume_db = p_volume;
 }
 
-float AudioStreamPlayer3D::get_unit_db() const {
-	return unit_db;
+float AudioStreamPlayer3D::get_volume_db() const {
+	return volume_db;
 }
 
 void AudioStreamPlayer3D::set_unit_size(float p_volume) {
@@ -599,6 +606,9 @@ bool AudioStreamPlayer3D::is_playing() const {
 			return true;
 		}
 	}
+	if (setplay.get() >= 0) {
+		return true; // play() has been called this frame, but no playback exists just yet.
+	}
 	return false;
 }
 
@@ -646,8 +656,8 @@ bool AudioStreamPlayer3D::_is_active() const {
 	return active.is_set();
 }
 
-void AudioStreamPlayer3D::_validate_property(PropertyInfo &property) const {
-	if (property.name == "bus") {
+void AudioStreamPlayer3D::_validate_property(PropertyInfo &p_property) const {
+	if (p_property.name == "bus") {
 		String options;
 		for (int i = 0; i < AudioServer::get_singleton()->get_bus_count(); i++) {
 			if (i > 0) {
@@ -657,10 +667,8 @@ void AudioStreamPlayer3D::_validate_property(PropertyInfo &property) const {
 			options += name;
 		}
 
-		property.hint_string = options;
+		p_property.hint_string = options;
 	}
-
-	Node3D::_validate_property(property);
 }
 
 void AudioStreamPlayer3D::_bus_layout_changed() {
@@ -792,12 +800,21 @@ int AudioStreamPlayer3D::get_max_polyphony() const {
 	return max_polyphony;
 }
 
+void AudioStreamPlayer3D::set_panning_strength(float p_panning_strength) {
+	ERR_FAIL_COND_MSG(p_panning_strength < 0, "Panning strength must be a positive number.");
+	panning_strength = p_panning_strength;
+}
+
+float AudioStreamPlayer3D::get_panning_strength() const {
+	return panning_strength;
+}
+
 void AudioStreamPlayer3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_stream", "stream"), &AudioStreamPlayer3D::set_stream);
 	ClassDB::bind_method(D_METHOD("get_stream"), &AudioStreamPlayer3D::get_stream);
 
-	ClassDB::bind_method(D_METHOD("set_unit_db", "unit_db"), &AudioStreamPlayer3D::set_unit_db);
-	ClassDB::bind_method(D_METHOD("get_unit_db"), &AudioStreamPlayer3D::get_unit_db);
+	ClassDB::bind_method(D_METHOD("set_volume_db", "volume_db"), &AudioStreamPlayer3D::set_volume_db);
+	ClassDB::bind_method(D_METHOD("get_volume_db"), &AudioStreamPlayer3D::get_volume_db);
 
 	ClassDB::bind_method(D_METHOD("set_unit_size", "unit_size"), &AudioStreamPlayer3D::set_unit_size);
 	ClassDB::bind_method(D_METHOD("get_unit_size"), &AudioStreamPlayer3D::get_unit_size);
@@ -857,11 +874,14 @@ void AudioStreamPlayer3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_polyphony", "max_polyphony"), &AudioStreamPlayer3D::set_max_polyphony);
 	ClassDB::bind_method(D_METHOD("get_max_polyphony"), &AudioStreamPlayer3D::get_max_polyphony);
 
+	ClassDB::bind_method(D_METHOD("set_panning_strength", "panning_strength"), &AudioStreamPlayer3D::set_panning_strength);
+	ClassDB::bind_method(D_METHOD("get_panning_strength"), &AudioStreamPlayer3D::get_panning_strength);
+
 	ClassDB::bind_method(D_METHOD("get_stream_playback"), &AudioStreamPlayer3D::get_stream_playback);
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "stream", PROPERTY_HINT_RESOURCE_TYPE, "AudioStream"), "set_stream", "get_stream");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "attenuation_model", PROPERTY_HINT_ENUM, "Inverse,Inverse Square,Logarithmic,Disabled"), "set_attenuation_model", "get_attenuation_model");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "unit_db", PROPERTY_HINT_RANGE, "-80,80,suffix:dB"), "set_unit_db", "get_unit_db");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "volume_db", PROPERTY_HINT_RANGE, "-80,80,suffix:dB"), "set_volume_db", "get_volume_db");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "unit_size", PROPERTY_HINT_RANGE, "0.1,100,0.01,or_greater"), "set_unit_size", "get_unit_size");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_db", PROPERTY_HINT_RANGE, "-24,6,suffix:dB"), "set_max_db", "get_max_db");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "pitch_scale", PROPERTY_HINT_RANGE, "0.01,4,0.01,or_greater"), "set_pitch_scale", "get_pitch_scale");
@@ -870,6 +890,7 @@ void AudioStreamPlayer3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stream_paused", PROPERTY_HINT_NONE, ""), "set_stream_paused", "get_stream_paused");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_distance", PROPERTY_HINT_RANGE, "0,4096,0.01,or_greater,suffix:m"), "set_max_distance", "get_max_distance");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_polyphony", PROPERTY_HINT_NONE, ""), "set_max_polyphony", "get_max_polyphony");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "panning_strength", PROPERTY_HINT_RANGE, "0,3,0.01,or_greater"), "set_panning_strength", "get_panning_strength");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "bus", PROPERTY_HINT_ENUM, ""), "set_bus", "get_bus");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "area_mask", PROPERTY_HINT_LAYERS_2D_PHYSICS), "set_area_mask", "get_area_mask");
 	ADD_GROUP("Emission Angle", "emission_angle");
@@ -898,6 +919,7 @@ AudioStreamPlayer3D::AudioStreamPlayer3D() {
 	velocity_tracker.instantiate();
 	AudioServer::get_singleton()->connect("bus_layout_changed", callable_mp(this, &AudioStreamPlayer3D::_bus_layout_changed));
 	set_disable_scale(true);
+	cached_global_panning_strength = GLOBAL_GET("audio/general/3d_panning_strength");
 }
 
 AudioStreamPlayer3D::~AudioStreamPlayer3D() {

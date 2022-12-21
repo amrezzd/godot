@@ -61,10 +61,15 @@ int main(int argc, char *argv[]) {
 	Error err = Main::setup(argv[0], argc - 1, &argv[1]);
 	if (err != OK) {
 		free(cwd);
+
+		if (err == ERR_HELP) { // Returned by --help and --version, so success.
+			return 0;
+		}
 		return 255;
 	}
 
 	if (Main::start()) {
+		os.set_exit_code(EXIT_SUCCESS);
 		os.run(); // it is actually the OS that decides how to run
 	}
 	Main::cleanup();

@@ -78,8 +78,8 @@ TEST_CASE("[Image] Instantiation") {
 
 TEST_CASE("[Image] Saving and loading") {
 	Ref<Image> image = memnew(Image(4, 4, false, Image::FORMAT_RGBA8));
-	const String save_path_png = OS::get_singleton()->get_cache_path().plus_file("image.png");
-	const String save_path_exr = OS::get_singleton()->get_cache_path().plus_file("image.exr");
+	const String save_path_png = OS::get_singleton()->get_cache_path().path_join("image.png");
+	const String save_path_exr = OS::get_singleton()->get_cache_path().path_join("image.exr");
 
 	// Save PNG
 	Error err;
@@ -124,7 +124,7 @@ TEST_CASE("[Image] Saving and loading") {
 			image_jpg->load_jpg_from_buffer(data_jpg) == OK,
 			"The JPG image should load successfully.");
 
-	// Load WEBP
+	// Load WebP
 	Ref<Image> image_webp = memnew(Image());
 	Ref<FileAccess> f_webp = FileAccess::open(TestUtils::get_data_path("images/icon.webp"), FileAccess::READ, &err);
 	PackedByteArray data_webp;
@@ -132,7 +132,7 @@ TEST_CASE("[Image] Saving and loading") {
 	f_webp->get_buffer(data_webp.ptrw(), f_webp->get_length());
 	CHECK_MESSAGE(
 			image_webp->load_webp_from_buffer(data_webp) == OK,
-			"The WEBP image should load successfully.");
+			"The WebP image should load successfully.");
 
 	// Load PNG
 	Ref<Image> image_png = memnew(Image());
@@ -161,8 +161,8 @@ TEST_CASE("[Image] Basic getters") {
 	CHECK(image->get_height() == 4);
 	CHECK(image->get_size() == Vector2(8, 4));
 	CHECK(image->get_format() == Image::FORMAT_LA8);
-	CHECK(image->get_used_rect() == Rect2(0, 0, 0, 0));
-	Ref<Image> image_get_rect = image->get_rect(Rect2(0, 0, 2, 1));
+	CHECK(image->get_used_rect() == Rect2i(0, 0, 0, 0));
+	Ref<Image> image_get_rect = image->get_region(Rect2i(0, 0, 2, 1));
 	CHECK(image_get_rect->get_size() == Vector2(2, 1));
 }
 
@@ -213,8 +213,8 @@ TEST_CASE("[Image] Modifying pixels of an image") {
 			image->get_pixelv(Vector2(0, 0)).is_equal_approx(Color(1, 1, 1, 1)),
 			"Image's get_pixel() should return the same color value as the one being set with set_pixel() in the same position.");
 	CHECK_MESSAGE(
-			image->get_used_rect() == Rect2(0, 0, 1, 1),
-			"Image's get_used_rect should return the expected value, larger than Rect2(0, 0, 0, 0) if it's visible.");
+			image->get_used_rect() == Rect2i(0, 0, 1, 1),
+			"Image's get_used_rect should return the expected value, larger than Rect2i(0, 0, 0, 0) if it's visible.");
 
 	image->set_pixelv(Vector2(0, 0), Color(0.5, 0.5, 0.5, 0.5));
 	Ref<Image> image2 = memnew(Image(3, 3, false, Image::FORMAT_RGBA8));
@@ -233,19 +233,19 @@ TEST_CASE("[Image] Modifying pixels of an image") {
 	{
 		const int img_width = 3;
 		const int img_height = 3;
-		Vector<Rect2> rects;
-		rects.push_back(Rect2());
-		rects.push_back(Rect2(-5, -5, 3, 3));
-		rects.push_back(Rect2(img_width, 0, 12, 12));
-		rects.push_back(Rect2(0, img_height, 12, 12));
-		rects.push_back(Rect2(img_width + 1, img_height + 2, 12, 12));
-		rects.push_back(Rect2(1, 1, 1, 1));
-		rects.push_back(Rect2(0, 1, 2, 3));
-		rects.push_back(Rect2(-5, 0, img_width + 10, 2));
-		rects.push_back(Rect2(0, -5, 2, img_height + 10));
-		rects.push_back(Rect2(-1, -1, img_width + 1, img_height + 1));
+		Vector<Rect2i> rects;
+		rects.push_back(Rect2i());
+		rects.push_back(Rect2i(-5, -5, 3, 3));
+		rects.push_back(Rect2i(img_width, 0, 12, 12));
+		rects.push_back(Rect2i(0, img_height, 12, 12));
+		rects.push_back(Rect2i(img_width + 1, img_height + 2, 12, 12));
+		rects.push_back(Rect2i(1, 1, 1, 1));
+		rects.push_back(Rect2i(0, 1, 2, 3));
+		rects.push_back(Rect2i(-5, 0, img_width + 10, 2));
+		rects.push_back(Rect2i(0, -5, 2, img_height + 10));
+		rects.push_back(Rect2i(-1, -1, img_width + 1, img_height + 1));
 
-		for (const Rect2 &rect : rects) {
+		for (const Rect2i &rect : rects) {
 			Ref<Image> img = memnew(Image(img_width, img_height, false, Image::FORMAT_RGBA8));
 			CHECK_NOTHROW_MESSAGE(
 					img->fill_rect(rect, Color(1, 1, 1, 1)),
@@ -267,7 +267,7 @@ TEST_CASE("[Image] Modifying pixels of an image") {
 	}
 
 	// Blend two images together
-	image->blend_rect(image2, Rect2(Vector2(0, 0), image2->get_size()), Vector2(0, 0));
+	image->blend_rect(image2, Rect2i(Vector2i(0, 0), image2->get_size()), Vector2i(0, 0));
 	CHECK_MESSAGE(
 			image->get_pixel(0, 0).a > 0.7,
 			"blend_rect() should blend the alpha values of the two images.");
@@ -279,7 +279,7 @@ TEST_CASE("[Image] Modifying pixels of an image") {
 	image3->set_pixel(0, 0, Color(0, 1, 0, 1));
 
 	//blit_rect() two images together
-	image->blit_rect(image3, Rect2(Vector2(0, 0), image3->get_size()), Vector2(0, 0));
+	image->blit_rect(image3, Rect2i(Vector2i(0, 0), image3->get_size()), Vector2i(0, 0));
 	CHECK_MESSAGE(
 			image->get_pixel(0, 0).is_equal_approx(Color(0, 1, 0, 1)),
 			"blit_rect() should replace old colors and not blend them.");
@@ -300,4 +300,5 @@ TEST_CASE("[Image] Modifying pixels of an image") {
 			"flip_y() should not leave old pixels behind.");
 }
 } // namespace TestImage
+
 #endif // TEST_IMAGE_H

@@ -51,7 +51,7 @@ void LightmapperRD::add_mesh(const MeshData &p_mesh) {
 	mesh_instances.push_back(mi);
 }
 
-void LightmapperRD::add_directional_light(bool p_static, const Vector3 &p_direction, const Color &p_color, float p_energy, float p_angular_distance) {
+void LightmapperRD::add_directional_light(bool p_static, const Vector3 &p_direction, const Color &p_color, float p_energy, float p_angular_distance, float p_shadow_blur) {
 	Light l;
 	l.type = LIGHT_TYPE_DIRECTIONAL;
 	l.direction[0] = p_direction.x;
@@ -62,11 +62,12 @@ void LightmapperRD::add_directional_light(bool p_static, const Vector3 &p_direct
 	l.color[2] = p_color.b;
 	l.energy = p_energy;
 	l.static_bake = p_static;
-	l.size = p_angular_distance;
+	l.size = Math::tan(Math::deg_to_rad(p_angular_distance));
+	l.shadow_blur = p_shadow_blur;
 	lights.push_back(l);
 }
 
-void LightmapperRD::add_omni_light(bool p_static, const Vector3 &p_position, const Color &p_color, float p_energy, float p_range, float p_attenuation, float p_size) {
+void LightmapperRD::add_omni_light(bool p_static, const Vector3 &p_position, const Color &p_color, float p_energy, float p_range, float p_attenuation, float p_size, float p_shadow_blur) {
 	Light l;
 	l.type = LIGHT_TYPE_OMNI;
 	l.position[0] = p_position.x;
@@ -80,10 +81,11 @@ void LightmapperRD::add_omni_light(bool p_static, const Vector3 &p_position, con
 	l.energy = p_energy;
 	l.static_bake = p_static;
 	l.size = p_size;
+	l.shadow_blur = p_shadow_blur;
 	lights.push_back(l);
 }
 
-void LightmapperRD::add_spot_light(bool p_static, const Vector3 &p_position, const Vector3 p_direction, const Color &p_color, float p_energy, float p_range, float p_attenuation, float p_spot_angle, float p_spot_attenuation, float p_size) {
+void LightmapperRD::add_spot_light(bool p_static, const Vector3 &p_position, const Vector3 p_direction, const Color &p_color, float p_energy, float p_range, float p_attenuation, float p_spot_angle, float p_spot_attenuation, float p_size, float p_shadow_blur) {
 	Light l;
 	l.type = LIGHT_TYPE_SPOT;
 	l.position[0] = p_position.x;
@@ -94,7 +96,7 @@ void LightmapperRD::add_spot_light(bool p_static, const Vector3 &p_position, con
 	l.direction[2] = p_direction.z;
 	l.range = p_range;
 	l.attenuation = p_attenuation;
-	l.cos_spot_angle = Math::cos(Math::deg2rad(p_spot_angle));
+	l.cos_spot_angle = Math::cos(Math::deg_to_rad(p_spot_angle));
 	l.inv_spot_attenuation = 1.0f / p_spot_attenuation;
 	l.color[0] = p_color.r;
 	l.color[1] = p_color.g;
@@ -102,6 +104,7 @@ void LightmapperRD::add_spot_light(bool p_static, const Vector3 &p_position, con
 	l.energy = p_energy;
 	l.static_bake = p_static;
 	l.size = p_size;
+	l.shadow_blur = p_shadow_blur;
 	lights.push_back(l);
 }
 
@@ -248,15 +251,11 @@ Lightmapper::BakeError LightmapperRD::_blit_meshes_into_atlas(int p_max_texture_
 	}
 
 	for (int i = 0; i < atlas_slices; i++) {
-		Ref<Image> albedo;
-		albedo.instantiate();
-		albedo->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBA8);
+		Ref<Image> albedo = Image::create_empty(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBA8);
 		albedo->set_as_black();
 		albedo_images.write[i] = albedo;
 
-		Ref<Image> emission;
-		emission.instantiate();
-		emission->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH);
+		Ref<Image> emission = Image::create_empty(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH);
 		emission->set_as_black();
 		emission_images.write[i] = emission;
 	}
@@ -268,14 +267,14 @@ Lightmapper::BakeError LightmapperRD::_blit_meshes_into_atlas(int p_max_texture_
 		mi.offset.x = best_atlas_offsets[m_i].x;
 		mi.offset.y = best_atlas_offsets[m_i].y;
 		mi.slice = best_atlas_offsets[m_i].z;
-		albedo_images.write[mi.slice]->blit_rect(mi.data.albedo_on_uv2, Rect2(Vector2(), Size2i(mi.data.albedo_on_uv2->get_width(), mi.data.albedo_on_uv2->get_height())), mi.offset);
-		emission_images.write[mi.slice]->blit_rect(mi.data.emission_on_uv2, Rect2(Vector2(), Size2i(mi.data.emission_on_uv2->get_width(), mi.data.emission_on_uv2->get_height())), mi.offset);
+		albedo_images.write[mi.slice]->blit_rect(mi.data.albedo_on_uv2, Rect2i(Vector2i(), mi.data.albedo_on_uv2->get_size()), mi.offset);
+		emission_images.write[mi.slice]->blit_rect(mi.data.emission_on_uv2, Rect2(Vector2i(), mi.data.emission_on_uv2->get_size()), mi.offset);
 	}
 
 	return BAKE_OK;
 }
 
-void LightmapperRD::_create_acceleration_structures(RenderingDevice *rd, Size2i atlas_size, int atlas_slices, AABB &bounds, int grid_size, Vector<Probe> &probe_positions, GenerateProbes p_generate_probes, Vector<int> &slice_triangle_count, Vector<int> &slice_seam_count, RID &vertex_buffer, RID &triangle_buffer, RID &lights_buffer, RID &triangle_cell_indices_buffer, RID &probe_positions_buffer, RID &grid_texture, RID &seams_buffer, BakeStepFunc p_step_function, void *p_bake_userdata) {
+void LightmapperRD::_create_acceleration_structures(RenderingDevice *rd, Size2i atlas_size, int atlas_slices, AABB &bounds, int grid_size, Vector<Probe> &p_probe_positions, GenerateProbes p_generate_probes, Vector<int> &slice_triangle_count, Vector<int> &slice_seam_count, RID &vertex_buffer, RID &triangle_buffer, RID &lights_buffer, RID &triangle_cell_indices_buffer, RID &probe_positions_buffer, RID &grid_texture, RID &seams_buffer, BakeStepFunc p_step_function, void *p_bake_userdata) {
 	HashMap<Vertex, uint32_t, VertexHash> vertex_map;
 
 	//fill triangles array and vertex array
@@ -400,8 +399,8 @@ void LightmapperRD::_create_acceleration_structures(RenderingDevice *rd, Size2i 
 	}
 
 	//also consider probe positions for bounds
-	for (int i = 0; i < probe_positions.size(); i++) {
-		Vector3 pp(probe_positions[i].position[0], probe_positions[i].position[1], probe_positions[i].position[2]);
+	for (int i = 0; i < p_probe_positions.size(); i++) {
+		Vector3 pp(p_probe_positions[i].position[0], p_probe_positions[i].position[1], p_probe_positions[i].position[2]);
 		bounds.expand_to(pp);
 	}
 	bounds.grow_by(0.1); //grow a bit to avoid numerical error
@@ -475,9 +474,7 @@ void LightmapperRD::_create_acceleration_structures(RenderingDevice *rd, Size2i 
 			grid_usage.write[j] = count > 0 ? 255 : 0;
 		}
 
-		Ref<Image> img;
-		img.instantiate();
-		img->create(grid_size, grid_size, false, Image::FORMAT_L8, grid_usage);
+		Ref<Image> img = Image::create_from_data(grid_size, grid_size, false, Image::FORMAT_L8, grid_usage);
 		img->save_png("res://grid_layer_" + itos(1000 + i).substr(1, 3) + ".png");
 	}
 #endif
@@ -517,7 +514,7 @@ void LightmapperRD::_create_acceleration_structures(RenderingDevice *rd, Size2i 
 		}
 		seams_buffer = rd->storage_buffer_create(sb.size(), sb);
 
-		Vector<uint8_t> pb = probe_positions.to_byte_array();
+		Vector<uint8_t> pb = p_probe_positions.to_byte_array();
 		if (pb.size() == 0) {
 			pb.resize(sizeof(Probe));
 		}
@@ -657,9 +654,7 @@ LightmapperRD::BakeError LightmapperRD::_dilate(RenderingDevice *rd, Ref<RDShade
 #ifdef DEBUG_TEXTURES
 	for (int i = 0; i < atlas_slices; i++) {
 		Vector<uint8_t> s = rd->texture_get_data(light_accum_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->convert(Image::FORMAT_RGBA8);
 		img->save_png("res://5_dilated_" + itos(i) + ".png");
 	}
@@ -667,7 +662,7 @@ LightmapperRD::BakeError LightmapperRD::_dilate(RenderingDevice *rd, Ref<RDShade
 	return BAKE_OK;
 }
 
-LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_denoiser, int p_bounces, float p_bias, int p_max_texture_size, bool p_bake_sh, GenerateProbes p_generate_probes, const Ref<Image> &p_environment_panorama, const Basis &p_environment_transform, BakeStepFunc p_step_function, void *p_bake_userdata) {
+LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_denoiser, int p_bounces, float p_bias, int p_max_texture_size, bool p_bake_sh, GenerateProbes p_generate_probes, const Ref<Image> &p_environment_panorama, const Basis &p_environment_transform, BakeStepFunc p_step_function, void *p_bake_userdata, float p_exposure_normalization) {
 	if (p_step_function) {
 		p_step_function(0.0, RTR("Begin Bake"), p_bake_userdata, true);
 	}
@@ -775,7 +770,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 				panorama_tex->convert(Image::FORMAT_RGBAF);
 			} else {
 				panorama_tex.instantiate();
-				panorama_tex->create(8, 8, false, Image::FORMAT_RGBAF);
+				panorama_tex->initialize_data(8, 8, false, Image::FORMAT_RGBAF);
 				panorama_tex->fill(Color(0, 0, 0, 1));
 			}
 
@@ -950,13 +945,11 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 	for (int i = 0; i < atlas_slices; i++) {
 		Vector<uint8_t> s = rd->texture_get_data(position_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAF, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAF, s);
 		img->save_exr("res://1_position_" + itos(i) + ".exr", false);
 
 		s = rd->texture_get_data(normal_tex, i);
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		img->set_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->save_exr("res://1_normal_" + itos(i) + ".exr", false);
 	}
 #endif
@@ -1140,10 +1133,29 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 		RID light_uniform_set = rd->uniform_set_create(uniforms, compute_shader_primary, 1);
 
+		switch (p_quality) {
+			case BAKE_QUALITY_LOW: {
+				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/low_quality_ray_count");
+			} break;
+			case BAKE_QUALITY_MEDIUM: {
+				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/medium_quality_ray_count");
+			} break;
+			case BAKE_QUALITY_HIGH: {
+				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/high_quality_ray_count");
+			} break;
+			case BAKE_QUALITY_ULTRA: {
+				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/ultra_quality_ray_count");
+			} break;
+		}
+
+		push_constant.ray_count = CLAMP(push_constant.ray_count, 16u, 8192u);
+
 		RD::ComputeListID compute_list = rd->compute_list_begin();
 		rd->compute_list_bind_compute_pipeline(compute_list, compute_shader_primary_pipeline);
 		rd->compute_list_bind_uniform_set(compute_list, compute_base_uniform_set, 0);
 		rd->compute_list_bind_uniform_set(compute_list, light_uniform_set, 1);
+
+		push_constant.environment_xform[11] = p_exposure_normalization;
 
 		for (int i = 0; i < atlas_slices; i++) {
 			push_constant.atlas_slice = i;
@@ -1152,15 +1164,15 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 			//no barrier, let them run all together
 		}
 		rd->compute_list_end(); //done
+
+		push_constant.environment_xform[11] = 0.0;
 	}
 
 #ifdef DEBUG_TEXTURES
 
 	for (int i = 0; i < atlas_slices; i++) {
 		Vector<uint8_t> s = rd->texture_get_data(light_source_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->save_exr("res://2_light_primary_" + itos(i) + ".exr", false);
 	}
 #endif
@@ -1229,23 +1241,6 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 		uniforms.write[0].set_id(0, light_source_tex);
 		uniforms.write[1].set_id(0, light_dest_tex);
 		secondary_uniform_set[1] = rd->uniform_set_create(uniforms, compute_shader_secondary, 1);
-
-		switch (p_quality) {
-			case BAKE_QUALITY_LOW: {
-				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/low_quality_ray_count");
-			} break;
-			case BAKE_QUALITY_MEDIUM: {
-				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/medium_quality_ray_count");
-			} break;
-			case BAKE_QUALITY_HIGH: {
-				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/high_quality_ray_count");
-			} break;
-			case BAKE_QUALITY_ULTRA: {
-				push_constant.ray_count = GLOBAL_GET("rendering/lightmapping/bake_quality/ultra_quality_ray_count");
-			} break;
-		}
-
-		push_constant.ray_count = CLAMP(push_constant.ray_count, 16u, 8192u);
 
 		int max_region_size = nearest_power_of_2_templated(int(GLOBAL_GET("rendering/lightmapping/bake_performance/region_size")));
 		int max_rays = GLOBAL_GET("rendering/lightmapping/bake_performance/max_rays_per_pass");
@@ -1408,16 +1403,12 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 #if 0
 	for (int i = 0; i < probe_positions.size(); i++) {
-		Ref<Image> img;
-		img.instantiate();
-		img->create(6, 4, false, Image::FORMAT_RGB8);
+		Ref<Image> img = Image::create_empty(6, 4, false, Image::FORMAT_RGB8);
 		for (int j = 0; j < 6; j++) {
 			Vector<uint8_t> s = rd->texture_get_data(lightprobe_tex, i * 6 + j);
-			Ref<Image> img2;
-			img2.instantiate();
-			img2->create(2, 2, false, Image::FORMAT_RGBAF, s);
+			Ref<Image> img2 = Image::create_from_data(2, 2, false, Image::FORMAT_RGBAF, s);
 			img2->convert(Image::FORMAT_RGB8);
-			img->blit_rect(img2, Rect2(0, 0, 2, 2), Point2((j % 3) * 2, (j / 3) * 2));
+			img->blit_rect(img2, Rect2i(0, 0, 2, 2), Point2i((j % 3) * 2, (j / 3) * 2));
 		}
 		img->save_png("res://3_light_probe_" + itos(i) + ".png");
 	}
@@ -1442,9 +1433,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 		if (denoiser.is_valid()) {
 			for (int i = 0; i < atlas_slices * (p_bake_sh ? 4 : 1); i++) {
 				Vector<uint8_t> s = rd->texture_get_data(light_accum_tex, i);
-				Ref<Image> img;
-				img.instantiate();
-				img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+				Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 
 				Ref<Image> denoised = denoiser->denoise_image(img);
 				if (denoised != img) {
@@ -1477,9 +1466,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 	for (int i = 0; i < atlas_slices * (p_bake_sh ? 4 : 1); i++) {
 		Vector<uint8_t> s = rd->texture_get_data(light_accum_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->save_exr("res://4_light_secondary_" + itos(i) + ".exr", false);
 	}
 #endif
@@ -1633,9 +1620,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 	for (int i = 0; i < atlas_slices * (p_bake_sh ? 4 : 1); i++) {
 		Vector<uint8_t> s = rd->texture_get_data(light_accum_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->save_exr("res://5_blendseams" + itos(i) + ".exr", false);
 	}
 #endif
@@ -1645,9 +1630,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 	for (int i = 0; i < atlas_slices * (p_bake_sh ? 4 : 1); i++) {
 		Vector<uint8_t> s = rd->texture_get_data(light_accum_tex, i);
-		Ref<Image> img;
-		img.instantiate();
-		img->create(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
+		Ref<Image> img = Image::create_from_data(atlas_size.width, atlas_size.height, false, Image::FORMAT_RGBAH, s);
 		img->convert(Image::FORMAT_RGBH); //remove alpha
 		bake_textures.push_back(img);
 	}
@@ -1660,9 +1643,7 @@ LightmapperRD::BakeError LightmapperRD::bake(BakeQuality p_quality, bool p_use_d
 
 #ifdef DEBUG_TEXTURES
 		{
-			Ref<Image> img2;
-			img2.instantiate();
-			img2->create(probe_values.size(), 1, false, Image::FORMAT_RGBAF, probe_data);
+			Ref<Image> img2 = Image::create_from_data(probe_values.size(), 1, false, Image::FORMAT_RGBAF, probe_data);
 			img2->save_exr("res://6_lightprobes.exr", false);
 		}
 #endif

@@ -81,6 +81,9 @@ enum {
 	VARIANT_VECTOR3I = 47,
 	VARIANT_PACKED_INT64_ARRAY = 48,
 	VARIANT_PACKED_FLOAT64_ARRAY = 49,
+	VARIANT_VECTOR4 = 50,
+	VARIANT_VECTOR4I = 51,
+	VARIANT_PROJECTION = 52,
 	OBJECT_EMPTY = 0,
 	OBJECT_EXTERNAL_RESOURCE = 1,
 	OBJECT_INTERNAL_RESOURCE = 2,
@@ -104,7 +107,7 @@ void ResourceLoaderBinary::_advance_padding(uint32_t p_len) {
 
 static Error read_reals(real_t *dst, Ref<FileAccess> &f, size_t count) {
 	if (f->real_is_double) {
-		if (sizeof(real_t) == 8) {
+		if constexpr (sizeof(real_t) == 8) {
 			// Ideal case with double-precision
 			f->get_buffer((uint8_t *)dst, count * sizeof(double));
 #ifdef BIG_ENDIAN_ENABLED
@@ -115,7 +118,7 @@ static Error read_reals(real_t *dst, Ref<FileAccess> &f, size_t count) {
 				}
 			}
 #endif
-		} else if (sizeof(real_t) == 4) {
+		} else if constexpr (sizeof(real_t) == 4) {
 			// May be slower, but this is for compatibility. Eventually the data should be converted.
 			for (size_t i = 0; i < count; ++i) {
 				dst[i] = f->get_double();
@@ -124,7 +127,7 @@ static Error read_reals(real_t *dst, Ref<FileAccess> &f, size_t count) {
 			ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "real_t size is neither 4 nor 8!");
 		}
 	} else {
-		if (sizeof(real_t) == 4) {
+		if constexpr (sizeof(real_t) == 4) {
 			// Ideal case with float-precision
 			f->get_buffer((uint8_t *)dst, count * sizeof(float));
 #ifdef BIG_ENDIAN_ENABLED
@@ -135,7 +138,7 @@ static Error read_reals(real_t *dst, Ref<FileAccess> &f, size_t count) {
 				}
 			}
 #endif
-		} else if (sizeof(real_t) == 8) {
+		} else if constexpr (sizeof(real_t) == 8) {
 			for (size_t i = 0; i < count; ++i) {
 				dst[i] = f->get_float();
 			}
@@ -166,10 +169,10 @@ StringName ResourceLoaderBinary::_get_string() {
 }
 
 Error ResourceLoaderBinary::parse_variant(Variant &r_v) {
-	uint32_t type = f->get_32();
-	print_bl("find property of type: " + itos(type));
+	uint32_t prop_type = f->get_32();
+	print_bl("find property of type: " + itos(prop_type));
 
-	switch (type) {
+	switch (prop_type) {
 		case VARIANT_NIL: {
 			r_v = Variant();
 		} break;
@@ -235,6 +238,22 @@ Error ResourceLoaderBinary::parse_variant(Variant &r_v) {
 			v.x = f->get_32();
 			v.y = f->get_32();
 			v.z = f->get_32();
+			r_v = v;
+		} break;
+		case VARIANT_VECTOR4: {
+			Vector4 v;
+			v.x = f->get_real();
+			v.y = f->get_real();
+			v.z = f->get_real();
+			v.w = f->get_real();
+			r_v = v;
+		} break;
+		case VARIANT_VECTOR4I: {
+			Vector4i v;
+			v.x = f->get_32();
+			v.y = f->get_32();
+			v.z = f->get_32();
+			v.w = f->get_32();
 			r_v = v;
 		} break;
 		case VARIANT_PLANE: {
@@ -304,6 +323,26 @@ Error ResourceLoaderBinary::parse_variant(Variant &r_v) {
 			v.origin.x = f->get_real();
 			v.origin.y = f->get_real();
 			v.origin.z = f->get_real();
+			r_v = v;
+		} break;
+		case VARIANT_PROJECTION: {
+			Projection v;
+			v.columns[0].x = f->get_real();
+			v.columns[0].y = f->get_real();
+			v.columns[0].z = f->get_real();
+			v.columns[0].w = f->get_real();
+			v.columns[1].x = f->get_real();
+			v.columns[1].y = f->get_real();
+			v.columns[1].z = f->get_real();
+			v.columns[1].w = f->get_real();
+			v.columns[2].x = f->get_real();
+			v.columns[2].y = f->get_real();
+			v.columns[2].z = f->get_real();
+			v.columns[2].w = f->get_real();
+			v.columns[3].x = f->get_real();
+			v.columns[3].y = f->get_real();
+			v.columns[3].z = f->get_real();
+			v.columns[3].w = f->get_real();
 			r_v = v;
 		} break;
 		case VARIANT_COLOR: {
@@ -382,7 +421,7 @@ Error ResourceLoaderBinary::parse_variant(Variant &r_v) {
 
 					if (!path.contains("://") && path.is_relative_path()) {
 						// path is relative to file being loaded, so convert to a resource path
-						path = ProjectSettings::get_singleton()->localize_path(res_path.get_base_dir().plus_file(path));
+						path = ProjectSettings::get_singleton()->localize_path(res_path.get_base_dir().path_join(path));
 					}
 
 					if (remaps.find(path)) {
@@ -644,7 +683,7 @@ Error ResourceLoaderBinary::load() {
 
 		if (!path.contains("://") && path.is_relative_path()) {
 			// path is relative to file being loaded, so convert to a resource path
-			path = ProjectSettings::get_singleton()->localize_path(path.get_base_dir().plus_file(external_resources[i].path));
+			path = ProjectSettings::get_singleton()->localize_path(path.get_base_dir().path_join(external_resources[i].path));
 		}
 
 		external_resources.write[i].path = path; //remap happens here, not on load because on load it can actually be used for filesystem dock resource remap
@@ -693,7 +732,7 @@ Error ResourceLoaderBinary::load() {
 			}
 
 			if (cache_mode == ResourceFormatLoader::CACHE_MODE_REUSE && ResourceCache::has(path)) {
-				Ref<Resource> cached = ResourceCache::get(path);
+				Ref<Resource> cached = ResourceCache::get_ref(path);
 				if (cached.is_valid()) {
 					//already loaded, don't do anything
 					error = OK;
@@ -717,10 +756,10 @@ Error ResourceLoaderBinary::load() {
 
 		if (cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE && ResourceCache::has(path)) {
 			//use the existing one
-			Resource *r = ResourceCache::get(path);
-			if (r->get_class() == t) {
-				r->reset_state();
-				res = Ref<Resource>(r);
+			Ref<Resource> cached = ResourceCache::get_ref(path);
+			if (cached->get_class() == t) {
+				cached->reset_state();
+				res = cached;
 			}
 		}
 
@@ -865,6 +904,22 @@ String ResourceLoaderBinary::get_unicode_string() {
 	return s;
 }
 
+void ResourceLoaderBinary::get_classes_used(Ref<FileAccess> p_f, HashSet<StringName> *p_classes) {
+	open(p_f, false, true);
+	if (error) {
+		return;
+	}
+
+	for (int i = 0; i < internal_resources.size(); i++) {
+		p_f->seek(internal_resources[i].offset);
+		String t = get_unicode_string();
+		ERR_FAIL_COND(p_f->get_error() != OK);
+		if (t != String()) {
+			p_classes->insert(t);
+		}
+	}
+}
+
 void ResourceLoaderBinary::get_dependencies(Ref<FileAccess> p_f, List<String> *p_dependencies, bool p_add_types) {
 	open(p_f, false, true);
 	if (error) {
@@ -987,7 +1042,14 @@ void ResourceLoaderBinary::open(Ref<FileAccess> p_f, bool p_no_resources, bool p
 					// If a UID is found and the path is valid, it will be used, otherwise, it falls back to the path.
 					er.path = ResourceUID::get_singleton()->get_id_path(er.uid);
 				} else {
+#ifdef TOOLS_ENABLED
+					// Silence a warning that can happen during the initial filesystem scan due to cache being regenerated.
+					if (ResourceLoader::get_resource_uid(res_path) != er.uid) {
+						WARN_PRINT(String(res_path + ": In external resource #" + itos(i) + ", invalid UUID: " + ResourceUID::get_singleton()->id_to_text(er.uid) + " - using text path instead: " + er.path).utf8().get_data());
+					}
+#else
 					WARN_PRINT(String(res_path + ": In external resource #" + itos(i) + ", invalid UUID: " + ResourceUID::get_singleton()->id_to_text(er.uid) + " - using text path instead: " + er.path).utf8().get_data());
+#endif
 				}
 			}
 		}
@@ -1045,16 +1107,14 @@ String ResourceLoaderBinary::recognize(Ref<FileAccess> p_f) {
 
 	uint32_t ver_major = f->get_32();
 	f->get_32(); // ver_minor
-	uint32_t ver_format = f->get_32();
+	uint32_t ver_fmt = f->get_32();
 
-	if (ver_format > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (ver_fmt > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
 		f.unref();
 		return "";
 	}
 
-	String type = get_unicode_string();
-
-	return type;
+	return get_unicode_string();
 }
 
 Ref<Resource> ResourceFormatLoaderBinary::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
@@ -1151,7 +1211,7 @@ Error ResourceFormatLoaderBinary::rename_dependencies(const String &p_path, cons
 		Ref<FileAccessCompressed> facw;
 		facw.instantiate();
 		facw->configure("RSCC");
-		err = facw->_open(p_path + ".depren", FileAccess::WRITE);
+		err = facw->open_internal(p_path + ".depren", FileAccess::WRITE);
 		ERR_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "Cannot create file '" + p_path + ".depren'.");
 
 		fw = facw;
@@ -1212,7 +1272,7 @@ Error ResourceFormatLoaderBinary::rename_dependencies(const String &p_path, cons
 		Ref<Resource> res = loader.get_resource();
 		ERR_FAIL_COND_V(!res.is_valid(), ERR_FILE_CORRUPT);
 
-		return ResourceFormatSaverBinary::singleton->save(p_path, res);
+		return ResourceFormatSaverBinary::singleton->save(res, p_path);
 	}
 
 	if (ver_format > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
@@ -1274,7 +1334,7 @@ Error ResourceFormatLoaderBinary::rename_dependencies(const String &p_path, cons
 
 		bool relative = false;
 		if (!path.begins_with("res://")) {
-			path = local_path.plus_file(path).simplify_path();
+			path = local_path.path_join(path).simplify_path();
 			relative = true;
 		}
 
@@ -1335,6 +1395,16 @@ Error ResourceFormatLoaderBinary::rename_dependencies(const String &p_path, cons
 	da->remove(p_path);
 	da->rename(p_path + ".depren", p_path);
 	return OK;
+}
+
+void ResourceFormatLoaderBinary::get_classes_used(const String &p_path, HashSet<StringName> *r_classes) {
+	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ);
+	ERR_FAIL_COND_MSG(f.is_null(), "Cannot open file '" + p_path + "'.");
+
+	ResourceLoaderBinary loader;
+	loader.local_path = ProjectSettings::get_singleton()->localize_path(p_path);
+	loader.res_path = loader.local_path;
+	loader.get_classes_used(f, r_classes);
 }
 
 String ResourceFormatLoaderBinary::get_resource_type(const String &p_path) const {
@@ -1473,6 +1543,24 @@ void ResourceFormatSaverBinaryInstance::write_variant(Ref<FileAccess> f, const V
 			f->store_32(val.z);
 
 		} break;
+		case Variant::VECTOR4: {
+			f->store_32(VARIANT_VECTOR4);
+			Vector4 val = p_property;
+			f->store_real(val.x);
+			f->store_real(val.y);
+			f->store_real(val.z);
+			f->store_real(val.w);
+
+		} break;
+		case Variant::VECTOR4I: {
+			f->store_32(VARIANT_VECTOR4I);
+			Vector4i val = p_property;
+			f->store_32(val.x);
+			f->store_32(val.y);
+			f->store_32(val.z);
+			f->store_32(val.w);
+
+		} break;
 		case Variant::PLANE: {
 			f->store_32(VARIANT_PLANE);
 			Plane val = p_property;
@@ -1542,6 +1630,27 @@ void ResourceFormatSaverBinaryInstance::write_variant(Ref<FileAccess> f, const V
 			f->store_real(val.origin.x);
 			f->store_real(val.origin.y);
 			f->store_real(val.origin.z);
+
+		} break;
+		case Variant::PROJECTION: {
+			f->store_32(VARIANT_PROJECTION);
+			Projection val = p_property;
+			f->store_real(val.columns[0].x);
+			f->store_real(val.columns[0].y);
+			f->store_real(val.columns[0].z);
+			f->store_real(val.columns[0].w);
+			f->store_real(val.columns[1].x);
+			f->store_real(val.columns[1].y);
+			f->store_real(val.columns[1].z);
+			f->store_real(val.columns[1].w);
+			f->store_real(val.columns[2].x);
+			f->store_real(val.columns[2].y);
+			f->store_real(val.columns[2].z);
+			f->store_real(val.columns[2].w);
+			f->store_real(val.columns[3].x);
+			f->store_real(val.columns[3].y);
+			f->store_real(val.columns[3].z);
+			f->store_real(val.columns[3].w);
 
 		} break;
 		case Variant::COLOR: {
@@ -1882,7 +1991,7 @@ Error ResourceFormatSaverBinaryInstance::save(const String &p_path, const Ref<Re
 		fac.instantiate();
 		fac->configure("RSCC");
 		f = fac;
-		err = fac->_open(p_path, FileAccess::WRITE);
+		err = fac->open_internal(p_path, FileAccess::WRITE);
 	} else {
 		f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	}
@@ -2014,9 +2123,9 @@ Error ResourceFormatSaverBinaryInstance::save(const String &p_path, const Ref<Re
 
 	for (int i = 0; i < save_order.size(); i++) {
 		save_unicode_string(f, save_order[i]->get_save_class());
-		String path = save_order[i]->get_path();
-		path = relative_paths ? local_path.path_to_file(path) : path;
-		save_unicode_string(f, path);
+		String res_path = save_order[i]->get_path();
+		res_path = relative_paths ? local_path.path_to_file(res_path) : res_path;
+		save_unicode_string(f, res_path);
 		ResourceUID::ID ruid = ResourceSaver::get_resource_id_for_path(save_order[i]->get_path(), false);
 		f->store_64(ruid);
 	}
@@ -2100,7 +2209,7 @@ Error ResourceFormatSaverBinaryInstance::save(const String &p_path, const Ref<Re
 	return OK;
 }
 
-Error ResourceFormatSaverBinary::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
+Error ResourceFormatSaverBinary::save(const Ref<Resource> &p_resource, const String &p_path, uint32_t p_flags) {
 	String local_path = ProjectSettings::get_singleton()->localize_path(p_path);
 	ResourceFormatSaverBinaryInstance saver;
 	return saver.save(local_path, p_resource, p_flags);

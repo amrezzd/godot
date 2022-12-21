@@ -31,6 +31,7 @@
 #ifndef TEXTURE_3D_EDITOR_PLUGIN_H
 #define TEXTURE_3D_EDITOR_PLUGIN_H
 
+#include "editor/editor_inspector.h"
 #include "editor/editor_plugin.h"
 #include "scene/gui/spin_box.h"
 #include "scene/resources/shader.h"
@@ -66,8 +67,6 @@ class Texture3DEditor : public Control {
 protected:
 	void _notification(int p_what);
 
-	static void _bind_methods();
-
 public:
 	void edit(Ref<Texture3D> p_texture);
 	Texture3DEditor();
@@ -91,4 +90,4 @@ public:
 	Texture3DEditorPlugin();
 };
 
-#endif // TEXTURE_EDITOR_PLUGIN_H
+#endif // TEXTURE_3D_EDITOR_PLUGIN_H

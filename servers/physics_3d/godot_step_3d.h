@@ -33,8 +33,8 @@
 
 #include "godot_space_3d.h"
 
+#include "core/object/worker_thread_pool.h"
 #include "core/templates/local_vector.h"
-#include "core/templates/thread_work_pool.h"
 
 class GodotStep3D {
 	uint64_t _step = 1;
@@ -42,15 +42,13 @@ class GodotStep3D {
 	int iterations = 0;
 	real_t delta = 0.0;
 
-	ThreadWorkPool work_pool;
-
 	LocalVector<LocalVector<GodotBody3D *>> body_islands;
 	LocalVector<LocalVector<GodotConstraint3D *>> constraint_islands;
 	LocalVector<GodotConstraint3D *> all_constraints;
 
 	void _populate_island(GodotBody3D *p_body, LocalVector<GodotBody3D *> &p_body_island, LocalVector<GodotConstraint3D *> &p_constraint_island);
 	void _populate_island_soft_body(GodotSoftBody3D *p_soft_body, LocalVector<GodotBody3D *> &p_body_island, LocalVector<GodotConstraint3D *> &p_constraint_island);
-	void _setup_contraint(uint32_t p_constraint_index, void *p_userdata = nullptr);
+	void _setup_constraint(uint32_t p_constraint_index, void *p_userdata = nullptr);
 	void _pre_solve_island(LocalVector<GodotConstraint3D *> &p_constraint_island) const;
 	void _solve_island(uint32_t p_island_index, void *p_userdata = nullptr);
 	void _check_suspend(const LocalVector<GodotBody3D *> &p_body_island) const;

@@ -34,7 +34,7 @@
 #include "core/math/vector2.h"
 #include "core/typedefs.h"
 
-static inline float undenormalise(volatile float f) {
+static inline float undenormalize(volatile float f) {
 	union {
 		uint32_t i;
 		float f;
@@ -48,11 +48,11 @@ static inline float undenormalise(volatile float f) {
 }
 
 static const float AUDIO_PEAK_OFFSET = 0.0000000001f;
-static const float AUDIO_MIN_PEAK_DB = -200.0f; // linear2db(AUDIO_PEAK_OFFSET)
+static const float AUDIO_MIN_PEAK_DB = -200.0f; // linear_to_db(AUDIO_PEAK_OFFSET)
 
 struct AudioFrame {
 	//left and right samples
-	float l, r;
+	float l = 0.f, r = 0.f;
 
 	_ALWAYS_INLINE_ const float &operator[](int idx) const { return idx == 0 ? l : r; }
 	_ALWAYS_INLINE_ float &operator[](int idx) { return idx == 0 ? l : r; }
@@ -101,9 +101,9 @@ struct AudioFrame {
 		r /= p_sample;
 	}
 
-	_ALWAYS_INLINE_ void undenormalise() {
-		l = ::undenormalise(l);
-		r = ::undenormalise(r);
+	_ALWAYS_INLINE_ void undenormalize() {
+		l = ::undenormalize(l);
+		r = ::undenormalize(r);
 	}
 
 	_FORCE_INLINE_ AudioFrame lerp(const AudioFrame &p_b, float p_t) const {

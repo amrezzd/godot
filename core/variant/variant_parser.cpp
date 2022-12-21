@@ -35,37 +35,91 @@
 #include "core/os/keyboard.h"
 #include "core/string/string_buffer.h"
 
-char32_t VariantParser::StreamFile::get_char() {
-	return f->get_8();
+char32_t VariantParser::Stream::get_char() {
+	// is within buffer?
+	if (readahead_pointer < readahead_filled) {
+		return readahead_buffer[readahead_pointer++];
+	}
+
+	// attempt to readahead
+	readahead_filled = _read_buffer(readahead_buffer, readahead_enabled ? READAHEAD_SIZE : 1);
+	if (readahead_filled) {
+		readahead_pointer = 0;
+	} else {
+		// EOF
+		readahead_pointer = 1;
+		eof = true;
+		return 0;
+	}
+	return get_char();
+}
+
+bool VariantParser::Stream::is_eof() const {
+	if (readahead_enabled) {
+		return eof;
+	}
+	return _is_eof();
 }
 
 bool VariantParser::StreamFile::is_utf8() const {
 	return true;
 }
 
-bool VariantParser::StreamFile::is_eof() const {
+bool VariantParser::StreamFile::_is_eof() const {
 	return f->eof_reached();
 }
 
-char32_t VariantParser::StreamString::get_char() {
-	if (pos > s.length()) {
-		return 0;
-	} else if (pos == s.length()) {
-		// You need to try to read again when you have reached the end for EOF to be reported,
-		// so this works the same as files (like StreamFile does)
-		pos++;
-		return 0;
-	} else {
-		return s[pos++];
+uint32_t VariantParser::StreamFile::_read_buffer(char32_t *p_buffer, uint32_t p_num_chars) {
+	// The buffer is assumed to include at least one character (for null terminator)
+	ERR_FAIL_COND_V(!p_num_chars, 0);
+
+	uint8_t *temp = (uint8_t *)alloca(p_num_chars);
+	uint64_t num_read = f->get_buffer(temp, p_num_chars);
+	ERR_FAIL_COND_V(num_read == UINT64_MAX, 0);
+
+	// translate to wchar
+	for (uint32_t n = 0; n < num_read; n++) {
+		p_buffer[n] = temp[n];
 	}
+
+	// could be less than p_num_chars, or zero
+	return num_read;
 }
 
 bool VariantParser::StreamString::is_utf8() const {
 	return false;
 }
 
-bool VariantParser::StreamString::is_eof() const {
+bool VariantParser::StreamString::_is_eof() const {
 	return pos > s.length();
+}
+
+uint32_t VariantParser::StreamString::_read_buffer(char32_t *p_buffer, uint32_t p_num_chars) {
+	// The buffer is assumed to include at least one character (for null terminator)
+	ERR_FAIL_COND_V(!p_num_chars, 0);
+
+	int available = MAX(s.length() - pos, 0);
+	if (available >= (int)p_num_chars) {
+		const char32_t *src = s.ptr();
+		src += pos;
+		memcpy(p_buffer, src, p_num_chars * sizeof(char32_t));
+		pos += p_num_chars;
+
+		return p_num_chars;
+	}
+
+	// going to reach EOF
+	if (available) {
+		const char32_t *src = s.ptr();
+		src += pos;
+		memcpy(p_buffer, src, available * sizeof(char32_t));
+		pos += available;
+	}
+
+	// add a zero
+	p_buffer[available] = 0;
+
+	return available;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -649,6 +703,32 @@ Error VariantParser::parse_value(Token &token, Variant &value, Stream *p_stream,
 			}
 
 			value = Vector3i(args[0], args[1], args[2]);
+		} else if (id == "Vector4") {
+			Vector<real_t> args;
+			Error err = _parse_construct<real_t>(p_stream, args, line, r_err_str);
+			if (err) {
+				return err;
+			}
+
+			if (args.size() != 4) {
+				r_err_str = "Expected 4 arguments for constructor";
+				return ERR_PARSE_ERROR;
+			}
+
+			value = Vector4(args[0], args[1], args[2], args[3]);
+		} else if (id == "Vector4i") {
+			Vector<int32_t> args;
+			Error err = _parse_construct<int32_t>(p_stream, args, line, r_err_str);
+			if (err) {
+				return err;
+			}
+
+			if (args.size() != 4) {
+				r_err_str = "Expected 4 arguments for constructor";
+				return ERR_PARSE_ERROR;
+			}
+
+			value = Vector4i(args[0], args[1], args[2], args[3]);
 		} else if (id == "Transform2D" || id == "Matrix32") { //compatibility
 			Vector<real_t> args;
 			Error err = _parse_construct<real_t>(p_stream, args, line, r_err_str);
@@ -731,6 +811,19 @@ Error VariantParser::parse_value(Token &token, Variant &value, Stream *p_stream,
 			}
 
 			value = Transform3D(Basis(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]), Vector3(args[9], args[10], args[11]));
+		} else if (id == "Projection") { // "Transform" kept for compatibility with Godot <4.
+			Vector<real_t> args;
+			Error err = _parse_construct<real_t>(p_stream, args, line, r_err_str);
+			if (err) {
+				return err;
+			}
+
+			if (args.size() != 16) {
+				r_err_str = "Expected 16 arguments for constructor";
+				return ERR_PARSE_ERROR;
+			}
+
+			value = Projection(Vector4(args[0], args[1], args[2], args[3]), Vector4(args[4], args[5], args[6], args[7]), Vector4(args[8], args[9], args[10], args[11]), Vector4(args[12], args[13], args[14], args[15]));
 		} else if (id == "Color") {
 			Vector<float> args;
 			Error err = _parse_construct<float>(p_stream, args, line, r_err_str);
@@ -1244,7 +1337,7 @@ Error VariantParser::_parse_dictionary(Dictionary &object, Stream *p_stream, int
 
 			Variant v;
 			err = parse_value(token, v, p_stream, line, r_err_str, p_res_parser);
-			if (err) {
+			if (err && err != ERR_FILE_MISSING_DEPENDENCIES) {
 				return err;
 			}
 			object[key] = v;
@@ -1534,6 +1627,14 @@ Error VariantWriter::write(const Variant &p_variant, StoreStringFunc p_store_str
 			Vector3i v = p_variant;
 			p_store_string_func(p_store_string_ud, "Vector3i(" + itos(v.x) + ", " + itos(v.y) + ", " + itos(v.z) + ")");
 		} break;
+		case Variant::VECTOR4: {
+			Vector4 v = p_variant;
+			p_store_string_func(p_store_string_ud, "Vector4(" + rtos_fix(v.x) + ", " + rtos_fix(v.y) + ", " + rtos_fix(v.z) + ", " + rtos_fix(v.w) + ")");
+		} break;
+		case Variant::VECTOR4I: {
+			Vector4i v = p_variant;
+			p_store_string_func(p_store_string_ud, "Vector4i(" + itos(v.x) + ", " + itos(v.y) + ", " + itos(v.z) + ", " + itos(v.w) + ")");
+		} break;
 		case Variant::PLANE: {
 			Plane p = p_variant;
 			p_store_string_func(p_store_string_ud, "Plane(" + rtos_fix(p.normal.x) + ", " + rtos_fix(p.normal.y) + ", " + rtos_fix(p.normal.z) + ", " + rtos_fix(p.d) + ")");
@@ -1596,6 +1697,20 @@ Error VariantWriter::write(const Variant &p_variant, StoreStringFunc p_store_str
 
 			p_store_string_func(p_store_string_ud, s + ")");
 		} break;
+		case Variant::PROJECTION: {
+			String s = "Projection(";
+			Projection t = p_variant;
+			for (int i = 0; i < 4; i++) {
+				for (int j = 0; j < 4; j++) {
+					if (i != 0 || j != 0) {
+						s += ", ";
+					}
+					s += rtos_fix(t.columns[i][j]);
+				}
+			}
+
+			p_store_string_func(p_store_string_ud, s + ")");
+		} break;
 
 		// misc types
 		case Variant::COLOR: {
@@ -1619,7 +1734,7 @@ Error VariantWriter::write(const Variant &p_variant, StoreStringFunc p_store_str
 		} break;
 
 		case Variant::OBJECT: {
-			Object *obj = p_variant;
+			Object *obj = p_variant.get_validated_object();
 
 			if (!obj) {
 				p_store_string_func(p_store_string_ud, "null");

@@ -28,10 +28,10 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef RENDERINGSERVERCANVASRENDER_H
-#define RENDERINGSERVERCANVASRENDER_H
+#ifndef RENDERER_CANVAS_RENDER_H
+#define RENDERER_CANVAS_RENDER_H
 
-#include "servers/rendering/renderer_storage.h"
+#include "servers/rendering_server.h"
 
 class RendererCanvasRender {
 public:
@@ -46,6 +46,7 @@ public:
 		CANVAS_RECT_CLIP_UV = 32,
 		CANVAS_RECT_IS_GROUP = 64,
 		CANVAS_RECT_MSDF = 128,
+		CANVAS_RECT_LCD = 256,
 	};
 
 	struct Light {
@@ -77,7 +78,7 @@ public:
 		Rect2 rect_cache;
 		Transform2D xform_cache;
 		float radius_cache; //used for shadow far plane
-		//CameraMatrix shadow_matrix_cache;
+		//Projection shadow_matrix_cache;
 
 		Transform2D light_shader_xform;
 		//Vector2 light_shader_pos;
@@ -193,7 +194,7 @@ public:
 			Rect2 rect;
 			Color modulate;
 			Rect2 source;
-			uint8_t flags;
+			uint16_t flags;
 			float outline;
 			float px_range;
 
@@ -257,11 +258,7 @@ public:
 			RID texture;
 
 			CommandMesh() { type = TYPE_MESH; }
-			~CommandMesh() {
-				if (mesh_instance.is_valid()) {
-					RendererStorage::base_singleton->free(mesh_instance);
-				}
-			}
+			~CommandMesh();
 		};
 
 		struct CommandMultiMesh : public Command {
@@ -479,7 +476,6 @@ public:
 	};
 
 	virtual void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used) = 0;
-	virtual void canvas_debug_viewport_shadows(Light *p_lights_with_shadow) = 0;
 
 	struct LightOccluderInstance {
 		bool enabled;
@@ -524,4 +520,4 @@ public:
 	virtual ~RendererCanvasRender() {}
 };
 
-#endif // RENDERINGSERVERCANVASRENDER_H
+#endif // RENDERER_CANVAS_RENDER_H

@@ -39,7 +39,7 @@
 #include "core/os/os.h"
 #include "core/string/string_name.h"
 #include "core/templates/pair.h"
-#include "scene/resources/audio_stream_sample.h"
+#include "scene/resources/audio_stream_wav.h"
 #include "servers/audio/audio_driver_dummy.h"
 #include "servers/audio/effects/audio_effect_compressor.h"
 
@@ -144,8 +144,8 @@ int AudioDriver::get_total_channels_by_speaker_mode(AudioDriver::SpeakerMode p_m
 	ERR_FAIL_V(2);
 }
 
-Array AudioDriver::get_device_list() {
-	Array list;
+PackedStringArray AudioDriver::get_device_list() {
+	PackedStringArray list;
 
 	list.push_back("Default");
 
@@ -156,8 +156,8 @@ String AudioDriver::get_device() {
 	return "Default";
 }
 
-Array AudioDriver::capture_get_device_list() {
-	Array list;
+PackedStringArray AudioDriver::capture_get_device_list() {
+	PackedStringArray list;
 
 	list.push_back("Default");
 
@@ -350,6 +350,10 @@ void AudioServer::_mix_step() {
 		// Mix the audio stream
 		unsigned int mixed_frames = playback->stream_playback->mix(&buf[LOOKAHEAD_BUFFER_SIZE], playback->pitch_scale.get(), buffer_size);
 
+		if (tag_used_audio_streams && playback->stream_playback->is_playing()) {
+			playback->stream_playback->tag_used_streams();
+		}
+
 		if (mixed_frames != buffer_size) {
 			// We know we have at least the size of our lookahead buffer for fade-out purposes.
 
@@ -445,12 +449,8 @@ void AudioServer::_mix_step() {
 			case AudioStreamPlaybackListNode::AWAITING_DELETION:
 			case AudioStreamPlaybackListNode::FADE_OUT_TO_DELETION:
 				playback_list.erase(playback, [](AudioStreamPlaybackListNode *p) {
-					if (p->prev_bus_details) {
-						delete p->prev_bus_details;
-					}
-					if (p->bus_details) {
-						delete p->bus_details;
-					}
+					delete p->prev_bus_details;
+					delete p->bus_details;
 					p->stream_playback.unref();
 					delete p;
 				});
@@ -543,7 +543,7 @@ void AudioServer::_mix_step() {
 
 			AudioFrame peak = AudioFrame(0, 0);
 
-			float volume = Math::db2linear(bus->volume_db);
+			float volume = Math::db_to_linear(bus->volume_db);
 
 			if (solo_mode) {
 				if (!bus->soloed) {
@@ -569,12 +569,12 @@ void AudioServer::_mix_step() {
 				}
 			}
 
-			bus->channels.write[k].peak_volume = AudioFrame(Math::linear2db(peak.l + AUDIO_PEAK_OFFSET), Math::linear2db(peak.r + AUDIO_PEAK_OFFSET));
+			bus->channels.write[k].peak_volume = AudioFrame(Math::linear_to_db(peak.l + AUDIO_PEAK_OFFSET), Math::linear_to_db(peak.r + AUDIO_PEAK_OFFSET));
 
 			if (!bus->channels[k].used) {
 				//see if any audio is contained, because channel was not used
 
-				if (MAX(peak.r, peak.l) > Math::db2linear(channel_disable_threshold_db)) {
+				if (MAX(peak.r, peak.l) > Math::db_to_linear(channel_disable_threshold_db)) {
 					bus->channels.write[k].last_mix_with_audio = mix_frames;
 				} else if (mix_frames - bus->channels[k].last_mix_with_audio > channel_disable_frames) {
 					bus->channels.write[k].active = false;
@@ -1312,6 +1312,10 @@ uint64_t AudioServer::get_mix_count() const {
 	return mix_count;
 }
 
+uint64_t AudioServer::get_mixed_frames() const {
+	return mix_frames;
+}
+
 void AudioServer::notify_listener_changed() {
 	for (CallbackItem *ci : listener_changed_callback_list) {
 		ci->callback(ci->userdata);
@@ -1446,7 +1450,7 @@ void AudioServer::update() {
 }
 
 void AudioServer::load_default_bus_layout() {
-	String layout_path = ProjectSettings::get_singleton()->get("audio/buses/default_bus_layout");
+	String layout_path = GLOBAL_GET("audio/buses/default_bus_layout");
 
 	if (ResourceLoader::exists(layout_path)) {
 		Ref<AudioBusLayout> default_layout = ResourceLoader::load(layout_path);
@@ -1629,7 +1633,7 @@ Ref<AudioBusLayout> AudioServer::generate_bus_layout() const {
 	return state;
 }
 
-Array AudioServer::get_device_list() {
+PackedStringArray AudioServer::get_device_list() {
 	return AudioDriver::get_singleton()->get_device_list();
 }
 
@@ -1641,7 +1645,7 @@ void AudioServer::set_device(String device) {
 	AudioDriver::get_singleton()->set_device(device);
 }
 
-Array AudioServer::capture_get_device_list() {
+PackedStringArray AudioServer::capture_get_device_list() {
 	return AudioDriver::get_singleton()->capture_get_device_list();
 }
 
@@ -1651,6 +1655,10 @@ String AudioServer::capture_get_device() {
 
 void AudioServer::capture_set_device(const String &p_name) {
 	AudioDriver::get_singleton()->capture_set_device(p_name);
+}
+
+void AudioServer::set_enable_tagging_used_audio_streams(bool p_enable) {
+	tag_used_audio_streams = p_enable;
 }
 
 void AudioServer::_bind_methods() {
@@ -1718,6 +1726,8 @@ void AudioServer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_bus_layout", "bus_layout"), &AudioServer::set_bus_layout);
 	ClassDB::bind_method(D_METHOD("generate_bus_layout"), &AudioServer::generate_bus_layout);
+
+	ClassDB::bind_method(D_METHOD("set_enable_tagging_used_audio_streams", "enable"), &AudioServer::set_enable_tagging_used_audio_streams);
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "bus_count"), "set_bus_count", "get_bus_count");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "device"), "set_device", "get_device");

@@ -33,7 +33,7 @@
 #include "core/config/project_settings.h"
 #include "core/os/os.h"
 
-void AudioStreamPlayback::start(float p_from_pos) {
+void AudioStreamPlayback::start(double p_from_pos) {
 	if (GDVIRTUAL_CALL(_start, p_from_pos)) {
 		return;
 	}
@@ -54,33 +54,30 @@ bool AudioStreamPlayback::is_playing() const {
 }
 
 int AudioStreamPlayback::get_loop_count() const {
-	int ret;
-	if (GDVIRTUAL_CALL(_get_loop_count, ret)) {
-		return ret;
-	}
-	return 0;
+	int ret = 0;
+	GDVIRTUAL_CALL(_get_loop_count, ret);
+	return ret;
 }
 
-float AudioStreamPlayback::get_playback_position() const {
-	float ret;
+double AudioStreamPlayback::get_playback_position() const {
+	double ret;
 	if (GDVIRTUAL_CALL(_get_playback_position, ret)) {
 		return ret;
 	}
 	ERR_FAIL_V_MSG(0, "AudioStreamPlayback::get_playback_position unimplemented!");
 }
-void AudioStreamPlayback::seek(float p_time) {
-	if (GDVIRTUAL_CALL(_seek, p_time)) {
-		return;
-	}
+void AudioStreamPlayback::seek(double p_time) {
+	GDVIRTUAL_CALL(_seek, p_time);
 }
 
 int AudioStreamPlayback::mix(AudioFrame *p_buffer, float p_rate_scale, int p_frames) {
-	int ret;
-	if (GDVIRTUAL_REQUIRED_CALL(_mix, p_buffer, p_rate_scale, p_frames, ret)) {
-		return ret;
-	}
+	int ret = 0;
+	GDVIRTUAL_REQUIRED_CALL(_mix, p_buffer, p_rate_scale, p_frames, ret);
+	return ret;
+}
 
-	return 0;
+void AudioStreamPlayback::tag_used_streams() {
+	GDVIRTUAL_CALL(_tag_used_streams);
 }
 
 void AudioStreamPlayback::_bind_methods() {
@@ -91,6 +88,7 @@ void AudioStreamPlayback::_bind_methods() {
 	GDVIRTUAL_BIND(_get_playback_position)
 	GDVIRTUAL_BIND(_seek, "position")
 	GDVIRTUAL_BIND(_mix, "buffer", "rate_scale", "frames");
+	GDVIRTUAL_BIND(_tag_used_streams);
 }
 //////////////////////////////
 
@@ -106,20 +104,14 @@ void AudioStreamPlaybackResampled::begin_resample() {
 }
 
 int AudioStreamPlaybackResampled::_mix_internal(AudioFrame *p_buffer, int p_frames) {
-	int ret;
-	if (GDVIRTUAL_REQUIRED_CALL(_mix_resampled, p_buffer, p_frames, ret)) {
-		return ret;
-	}
-
-	return 0;
+	int ret = 0;
+	GDVIRTUAL_REQUIRED_CALL(_mix_resampled, p_buffer, p_frames, ret);
+	return ret;
 }
 float AudioStreamPlaybackResampled::get_stream_sampling_rate() {
-	float ret;
-	if (GDVIRTUAL_REQUIRED_CALL(_get_stream_sampling_rate, ret)) {
-		return ret;
-	}
-
-	return 0;
+	float ret = 0;
+	GDVIRTUAL_REQUIRED_CALL(_get_stream_sampling_rate, ret);
+	return ret;
 }
 
 void AudioStreamPlaybackResampled::_bind_methods() {
@@ -135,9 +127,10 @@ int AudioStreamPlaybackResampled::mix(AudioFrame *p_buffer, float p_rate_scale, 
 
 	uint64_t mix_increment = uint64_t(((get_stream_sampling_rate() * p_rate_scale * playback_speed_scale) / double(target_rate)) * double(FP_LEN));
 
-	int mixed_frames_total = p_frames;
+	int mixed_frames_total = -1;
 
-	for (int i = 0; i < p_frames; i++) {
+	int i;
+	for (i = 0; i < p_frames; i++) {
 		uint32_t idx = CUBIC_INTERP_HISTORY + uint32_t(mix_offset >> FP_BITS);
 		//standard cubic interpolation (great quality/performance ratio)
 		//this used to be moved to a LUT for greater performance, but nowadays CPU speed is generally faster than memory.
@@ -147,7 +140,7 @@ int AudioStreamPlaybackResampled::mix(AudioFrame *p_buffer, float p_rate_scale, 
 		AudioFrame y2 = internal_buffer[idx - 1];
 		AudioFrame y3 = internal_buffer[idx - 0];
 
-		if (idx <= internal_buffer_end && idx >= internal_buffer_end && mixed_frames_total == p_frames) {
+		if (idx >= internal_buffer_end && mixed_frames_total == -1) {
 			// The internal buffer ends somewhere in this range, and we haven't yet recorded the number of good frames we have.
 			mixed_frames_total = i;
 		}
@@ -167,73 +160,110 @@ int AudioStreamPlaybackResampled::mix(AudioFrame *p_buffer, float p_rate_scale, 
 			internal_buffer[1] = internal_buffer[INTERNAL_BUFFER_LEN + 1];
 			internal_buffer[2] = internal_buffer[INTERNAL_BUFFER_LEN + 2];
 			internal_buffer[3] = internal_buffer[INTERNAL_BUFFER_LEN + 3];
-			if (is_playing()) {
-				int mixed_frames = _mix_internal(internal_buffer + 4, INTERNAL_BUFFER_LEN);
-				if (mixed_frames != INTERNAL_BUFFER_LEN) {
-					// internal_buffer[mixed_frames] is the first frame of silence.
-					internal_buffer_end = mixed_frames;
-				} else {
-					// The internal buffer does not contain the first frame of silence.
-					internal_buffer_end = -1;
-				}
+			int mixed_frames = _mix_internal(internal_buffer + 4, INTERNAL_BUFFER_LEN);
+			if (mixed_frames != INTERNAL_BUFFER_LEN) {
+				// internal_buffer[mixed_frames] is the first frame of silence.
+				internal_buffer_end = mixed_frames;
 			} else {
-				//fill with silence, not playing
-				for (int j = 0; j < INTERNAL_BUFFER_LEN; ++j) {
-					internal_buffer[j + 4] = AudioFrame(0, 0);
-				}
+				// The internal buffer does not contain the first frame of silence.
+				internal_buffer_end = -1;
 			}
 			mix_offset -= (INTERNAL_BUFFER_LEN << FP_BITS);
 		}
+	}
+	if (mixed_frames_total == -1 && i == p_frames) {
+		mixed_frames_total = p_frames;
 	}
 	return mixed_frames_total;
 }
 
 ////////////////////////////////
 
-Ref<AudioStreamPlayback> AudioStream::instance_playback() {
+Ref<AudioStreamPlayback> AudioStream::instantiate_playback() {
 	Ref<AudioStreamPlayback> ret;
-	if (GDVIRTUAL_CALL(_instance_playback, ret)) {
+	if (GDVIRTUAL_CALL(_instantiate_playback, ret)) {
 		return ret;
 	}
 	ERR_FAIL_V_MSG(Ref<AudioStreamPlayback>(), "Method must be implemented!");
 }
 String AudioStream::get_stream_name() const {
 	String ret;
-	if (GDVIRTUAL_CALL(_get_stream_name, ret)) {
-		return ret;
-	}
-	return String();
+	GDVIRTUAL_CALL(_get_stream_name, ret);
+	return ret;
 }
 
-float AudioStream::get_length() const {
-	float ret;
-	if (GDVIRTUAL_CALL(_get_length, ret)) {
-		return ret;
-	}
-	return 0;
+double AudioStream::get_length() const {
+	double ret = 0;
+	GDVIRTUAL_CALL(_get_length, ret);
+	return ret;
 }
 
 bool AudioStream::is_monophonic() const {
-	bool ret;
-	if (GDVIRTUAL_CALL(_is_monophonic, ret)) {
-		return ret;
+	bool ret = true;
+	GDVIRTUAL_CALL(_is_monophonic, ret);
+	return ret;
+}
+
+double AudioStream::get_bpm() const {
+	double ret = 0;
+	GDVIRTUAL_CALL(_get_bpm, ret);
+	return ret;
+}
+
+bool AudioStream::has_loop() const {
+	bool ret = 0;
+	GDVIRTUAL_CALL(_has_loop, ret);
+	return ret;
+}
+
+int AudioStream::get_bar_beats() const {
+	int ret = 0;
+	GDVIRTUAL_CALL(_get_bar_beats, ret);
+	return ret;
+}
+
+int AudioStream::get_beat_count() const {
+	int ret = 0;
+	GDVIRTUAL_CALL(_get_beat_count, ret);
+	return ret;
+}
+
+void AudioStream::tag_used(float p_offset) {
+	if (tagged_frame != AudioServer::get_singleton()->get_mixed_frames()) {
+		offset_count = 0;
+		tagged_frame = AudioServer::get_singleton()->get_mixed_frames();
 	}
-	return true;
+	if (offset_count < MAX_TAGGED_OFFSETS) {
+		tagged_offsets[offset_count++] = p_offset;
+	}
+}
+
+uint64_t AudioStream::get_tagged_frame() const {
+	return tagged_frame;
+}
+uint32_t AudioStream::get_tagged_frame_count() const {
+	return offset_count;
+}
+float AudioStream::get_tagged_frame_offset(int p_index) const {
+	ERR_FAIL_INDEX_V(p_index, MAX_TAGGED_OFFSETS, 0);
+	return tagged_offsets[p_index];
 }
 
 void AudioStream::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_length"), &AudioStream::get_length);
 	ClassDB::bind_method(D_METHOD("is_monophonic"), &AudioStream::is_monophonic);
-	ClassDB::bind_method(D_METHOD("instance_playback"), &AudioStream::instance_playback);
-	GDVIRTUAL_BIND(_instance_playback);
+	ClassDB::bind_method(D_METHOD("instantiate_playback"), &AudioStream::instantiate_playback);
+	GDVIRTUAL_BIND(_instantiate_playback);
 	GDVIRTUAL_BIND(_get_stream_name);
 	GDVIRTUAL_BIND(_get_length);
 	GDVIRTUAL_BIND(_is_monophonic);
+	GDVIRTUAL_BIND(_get_bpm)
+	GDVIRTUAL_BIND(_get_beat_count)
 }
 
 ////////////////////////////////
 
-Ref<AudioStreamPlayback> AudioStreamMicrophone::instance_playback() {
+Ref<AudioStreamPlayback> AudioStreamMicrophone::instantiate_playback() {
 	Ref<AudioStreamPlaybackMicrophone> playback;
 	playback.instantiate();
 
@@ -252,7 +282,7 @@ String AudioStreamMicrophone::get_stream_name() const {
 	return "Microphone";
 }
 
-float AudioStreamMicrophone::get_length() const {
+double AudioStreamMicrophone::get_length() const {
 	return 0;
 }
 
@@ -325,7 +355,7 @@ float AudioStreamPlaybackMicrophone::get_stream_sampling_rate() {
 	return AudioDriver::get_singleton()->get_mix_rate();
 }
 
-void AudioStreamPlaybackMicrophone::start(float p_from_pos) {
+void AudioStreamPlaybackMicrophone::start(double p_from_pos) {
 	if (active) {
 		return;
 	}
@@ -358,12 +388,16 @@ int AudioStreamPlaybackMicrophone::get_loop_count() const {
 	return 0;
 }
 
-float AudioStreamPlaybackMicrophone::get_playback_position() const {
+double AudioStreamPlaybackMicrophone::get_playback_position() const {
 	return 0;
 }
 
-void AudioStreamPlaybackMicrophone::seek(float p_time) {
+void AudioStreamPlaybackMicrophone::seek(double p_time) {
 	// Can't seek a microphone input
+}
+
+void AudioStreamPlaybackMicrophone::tag_used_streams() {
+	microphone->tag_used(0);
 }
 
 AudioStreamPlaybackMicrophone::~AudioStreamPlaybackMicrophone() {
@@ -376,12 +410,12 @@ AudioStreamPlaybackMicrophone::AudioStreamPlaybackMicrophone() {
 
 ////////////////////////////////
 
-void AudioStreamRandomizer::add_stream(int p_index) {
+void AudioStreamRandomizer::add_stream(int p_index, Ref<AudioStream> p_stream, float p_weight) {
 	if (p_index < 0) {
 		p_index = audio_stream_pool.size();
 	}
 	ERR_FAIL_COND(p_index > audio_stream_pool.size());
-	PoolEntry entry{ nullptr, 1.0f };
+	PoolEntry entry{ p_stream, p_weight };
 	audio_stream_pool.insert(p_index, entry);
 	emit_signal(SNAME("changed"));
 	notify_property_list_changed();
@@ -493,7 +527,7 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_random() {
 	for (PoolEntry &entry : local_pool) {
 		cumulative_weight += entry.weight;
 		if (cumulative_weight > chosen_cumulative_weight) {
-			playback->playback = entry.stream->instance_playback();
+			playback->playback = entry.stream->instantiate_playback();
 			last_playback = entry.stream;
 			break;
 		}
@@ -501,7 +535,7 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_random() {
 	if (playback->playback.is_null()) {
 		// This indicates a floating point error. Take the last element.
 		last_playback = local_pool[local_pool.size() - 1].stream;
-		playback->playback = local_pool.write[local_pool.size() - 1].stream->instance_playback();
+		playback->playback = local_pool.write[local_pool.size() - 1].stream->instantiate_playback();
 	}
 	return playback;
 }
@@ -521,8 +555,9 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_no_repeats() {
 		}
 	}
 	if (local_pool.is_empty()) {
+		// There is only one sound to choose from.
+		// Always play a random sound while allowing repeats (which always plays the same sound).
 		playback = instance_playback_random();
-		WARN_PRINT("Playback stream pool is too small to prevent repeats.");
 		return playback;
 	}
 
@@ -535,14 +570,14 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_no_repeats() {
 		cumulative_weight += entry.weight;
 		if (cumulative_weight > chosen_cumulative_weight) {
 			last_playback = entry.stream;
-			playback->playback = entry.stream->instance_playback();
+			playback->playback = entry.stream->instantiate_playback();
 			break;
 		}
 	}
 	if (playback->playback.is_null()) {
 		// This indicates a floating point error. Take the last element.
 		last_playback = local_pool[local_pool.size() - 1].stream;
-		playback->playback = local_pool.write[local_pool.size() - 1].stream->instance_playback();
+		playback->playback = local_pool.write[local_pool.size() - 1].stream->instantiate_playback();
 	}
 	return playback;
 }
@@ -571,7 +606,7 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_sequential() {
 	for (Ref<AudioStream> &entry : local_pool) {
 		if (found_last_stream) {
 			last_playback = entry;
-			playback->playback = entry->instance_playback();
+			playback->playback = entry->instantiate_playback();
 			break;
 		}
 		if (entry == last_playback) {
@@ -581,12 +616,12 @@ Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback_sequential() {
 	if (playback->playback.is_null()) {
 		// Wrap around
 		last_playback = local_pool[0];
-		playback->playback = local_pool.write[0]->instance_playback();
+		playback->playback = local_pool.write[0]->instantiate_playback();
 	}
 	return playback;
 }
 
-Ref<AudioStreamPlayback> AudioStreamRandomizer::instance_playback() {
+Ref<AudioStreamPlayback> AudioStreamRandomizer::instantiate_playback() {
 	switch (playback_mode) {
 		case PLAYBACK_RANDOM:
 			return instance_playback_random();
@@ -603,7 +638,7 @@ String AudioStreamRandomizer::get_stream_name() const {
 	return "Randomizer";
 }
 
-float AudioStreamRandomizer::get_length() const {
+double AudioStreamRandomizer::get_length() const {
 	return 0;
 }
 
@@ -674,7 +709,7 @@ void AudioStreamRandomizer::_get_property_list(List<PropertyInfo> *p_list) const
 }
 
 void AudioStreamRandomizer::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("add_stream", "index"), &AudioStreamRandomizer::add_stream);
+	ClassDB::bind_method(D_METHOD("add_stream", "index", "stream", "weight"), &AudioStreamRandomizer::add_stream, DEFVAL(1.0));
 	ClassDB::bind_method(D_METHOD("move_stream", "index_from", "index_to"), &AudioStreamRandomizer::move_stream);
 	ClassDB::bind_method(D_METHOD("remove_stream", "index"), &AudioStreamRandomizer::remove_stream);
 
@@ -699,7 +734,7 @@ void AudioStreamRandomizer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "streams_count", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_streams_count", "get_streams_count");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "playback_mode", PROPERTY_HINT_ENUM, "Random (Avoid Repeats),Random,Sequential"), "set_playback_mode", "get_playback_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "random_pitch", PROPERTY_HINT_RANGE, "1,16,0.01"), "set_random_pitch", "get_random_pitch");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "random_volume_offset_db", PROPERTY_HINT_RANGE, "0,40,0,suffix:dB"), "set_random_volume_offset_db", "get_random_volume_offset_db");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "random_volume_offset_db", PROPERTY_HINT_RANGE, "0,40,0.01,suffix:dB"), "set_random_volume_offset_db", "get_random_volume_offset_db");
 
 	BIND_ENUM_CONSTANT(PLAYBACK_RANDOM_NO_REPEATS);
 	BIND_ENUM_CONSTANT(PLAYBACK_RANDOM);
@@ -708,7 +743,7 @@ void AudioStreamRandomizer::_bind_methods() {
 
 AudioStreamRandomizer::AudioStreamRandomizer() {}
 
-void AudioStreamPlaybackRandomizer::start(float p_from_pos) {
+void AudioStreamPlaybackRandomizer::start(double p_from_pos) {
 	playing = playback;
 	{
 		float range_from = 1.0 / randomizer->random_pitch_scale;
@@ -721,7 +756,7 @@ void AudioStreamPlaybackRandomizer::start(float p_from_pos) {
 		float range_to = randomizer->random_volume_offset_db;
 
 		float volume_offset_db = range_from + Math::randf() * (range_to - range_from);
-		volume_scale = Math::db2linear(volume_offset_db);
+		volume_scale = Math::db_to_linear(volume_offset_db);
 	}
 
 	if (playing.is_valid()) {
@@ -751,7 +786,7 @@ int AudioStreamPlaybackRandomizer::get_loop_count() const {
 	return 0;
 }
 
-float AudioStreamPlaybackRandomizer::get_playback_position() const {
+double AudioStreamPlaybackRandomizer::get_playback_position() const {
 	if (playing.is_valid()) {
 		return playing->get_playback_position();
 	}
@@ -759,10 +794,18 @@ float AudioStreamPlaybackRandomizer::get_playback_position() const {
 	return 0;
 }
 
-void AudioStreamPlaybackRandomizer::seek(float p_time) {
+void AudioStreamPlaybackRandomizer::seek(double p_time) {
 	if (playing.is_valid()) {
 		playing->seek(p_time);
 	}
+}
+
+void AudioStreamPlaybackRandomizer::tag_used_streams() {
+	Ref<AudioStreamPlayback> p = playing; // Thread safety
+	if (p.is_valid()) {
+		p->tag_used_streams();
+	}
+	randomizer->tag_used(0);
 }
 
 int AudioStreamPlaybackRandomizer::mix(AudioFrame *p_buffer, float p_rate_scale, int p_frames) {

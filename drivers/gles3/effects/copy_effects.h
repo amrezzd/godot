@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef COPY_GL_H
-#define COPY_GL_H
+#ifndef COPY_EFFECTS_GLES3_H
+#define COPY_EFFECTS_GLES3_H
 
 #ifdef GLES3_ENABLED
 
@@ -61,13 +61,16 @@ public:
 	~CopyEffects();
 
 	// These functions assume that a framebuffer and texture are bound already. They only manage the shader, uniforms, and vertex array.
-	void copy_to_rect(const Rect2i &p_rect);
+	void copy_to_rect(const Rect2 &p_rect);
 	void copy_screen();
 	void bilinear_blur(GLuint p_source_texture, int p_mipmap_count, const Rect2i &p_region);
 	void set_color(const Color &p_color, const Rect2i &p_region);
+	void draw_screen_triangle();
+	void draw_screen_quad();
 };
 
 } //namespace GLES3
 
 #endif // GLES3_ENABLED
-#endif // !COPY_GL_H
+
+#endif // COPY_EFFECTS_GLES3_H

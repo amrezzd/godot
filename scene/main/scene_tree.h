@@ -53,6 +53,7 @@ class SceneTreeTimer : public RefCounted {
 
 	double time_left = 0.0;
 	bool process_always = true;
+	bool process_in_physics = false;
 	bool ignore_time_scale = false;
 
 protected:
@@ -64,6 +65,9 @@ public:
 
 	void set_process_always(bool p_process_always);
 	bool is_process_always();
+
+	void set_process_in_physics(bool p_process_in_physics);
+	bool is_process_in_physics();
 
 	void set_ignore_time_scale(bool p_ignore);
 	bool is_ignore_time_scale();
@@ -90,13 +94,14 @@ private:
 	Window *root = nullptr;
 
 	uint64_t tree_version = 1;
-	double physics_process_time = 1.0;
-	double process_time = 1.0;
+	double physics_process_time = 0.0;
+	double process_time = 0.0;
 	bool accept_quit = true;
 	bool quit_on_go_back = true;
 
 #ifdef DEBUG_ENABLED
 	bool debug_collisions_hint = false;
+	bool debug_paths_hint = false;
 	bool debug_navigation_hint = false;
 #endif
 	bool paused = false;
@@ -140,15 +145,18 @@ private:
 
 	_FORCE_INLINE_ void _update_group_order(Group &g, bool p_use_priority = false);
 
-	Array _get_nodes_in_group(const StringName &p_group);
+	TypedArray<Node> _get_nodes_in_group(const StringName &p_group);
 
 	Node *current_scene = nullptr;
 
 	Color debug_collisions_color;
 	Color debug_collision_contact_color;
+	Color debug_paths_color;
+	float debug_paths_width = 1.0f;
 	Color debug_navigation_color;
 	Color debug_navigation_disabled_color;
 	Ref<ArrayMesh> debug_contact_mesh;
+	Ref<Material> debug_paths_material;
 	Ref<Material> navigation_material;
 	Ref<Material> navigation_disabled_material;
 	Ref<Material> collision_material;
@@ -172,7 +180,8 @@ private:
 	void node_added(Node *p_node);
 	void node_removed(Node *p_node);
 	void node_renamed(Node *p_node);
-	void process_tweens(float p_delta, bool p_physics_frame);
+	void process_timers(double p_delta, bool p_physics_frame);
+	void process_tweens(double p_delta, bool p_physics_frame);
 
 	Group *add_to_group(const StringName &p_group, Node *p_node);
 	void remove_from_group(const StringName &p_group, Node *p_node);
@@ -297,11 +306,17 @@ public:
 	void set_debug_collisions_hint(bool p_enabled);
 	bool is_debugging_collisions_hint() const;
 
+	void set_debug_paths_hint(bool p_enabled);
+	bool is_debugging_paths_hint() const;
+
 	void set_debug_navigation_hint(bool p_enabled);
 	bool is_debugging_navigation_hint() const;
 #else
 	void set_debug_collisions_hint(bool p_enabled) {}
 	bool is_debugging_collisions_hint() const { return false; }
+
+	void set_debug_paths_hint(bool p_enabled) {}
+	bool is_debugging_paths_hint() const { return false; }
 
 	void set_debug_navigation_hint(bool p_enabled) {}
 	bool is_debugging_navigation_hint() const { return false; }
@@ -313,14 +328,13 @@ public:
 	void set_debug_collision_contact_color(const Color &p_color);
 	Color get_debug_collision_contact_color() const;
 
-	void set_debug_navigation_color(const Color &p_color);
-	Color get_debug_navigation_color() const;
+	void set_debug_paths_color(const Color &p_color);
+	Color get_debug_paths_color() const;
 
-	void set_debug_navigation_disabled_color(const Color &p_color);
-	Color get_debug_navigation_disabled_color() const;
+	void set_debug_paths_width(float p_width);
+	float get_debug_paths_width() const;
 
-	Ref<Material> get_debug_navigation_material();
-	Ref<Material> get_debug_navigation_disabled_material();
+	Ref<Material> get_debug_paths_material();
 	Ref<Material> get_debug_collision_material();
 	Ref<ArrayMesh> get_debug_contact_mesh();
 
@@ -344,13 +358,13 @@ public:
 
 	void set_current_scene(Node *p_scene);
 	Node *get_current_scene() const;
-	Error change_scene(const String &p_path);
-	Error change_scene_to(const Ref<PackedScene> &p_scene);
+	Error change_scene_to_file(const String &p_path);
+	Error change_scene_to_packed(const Ref<PackedScene> &p_scene);
 	Error reload_current_scene();
 
-	Ref<SceneTreeTimer> create_timer(double p_delay_sec, bool p_process_always = true);
+	Ref<SceneTreeTimer> create_timer(double p_delay_sec, bool p_process_always = true, bool p_process_in_physics = false, bool p_ignore_time_scale = false);
 	Ref<Tween> create_tween();
-	Array get_processed_tweens();
+	TypedArray<Tween> get_processed_tweens();
 
 	//used by Main::start, don't use otherwise
 	void add_current_scene(Node *p_current);

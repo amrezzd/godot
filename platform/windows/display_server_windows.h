@@ -61,9 +61,9 @@
 #include "gl_manager_windows.h"
 #endif
 
-#include <fcntl.h>
 #include <io.h>
 #include <stdio.h>
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
@@ -82,9 +82,12 @@
 #define DVC_ROTATION 18
 
 #define CXO_MESSAGES 0x0004
+#define PK_STATUS 0x0002
 #define PK_NORMAL_PRESSURE 0x0400
 #define PK_TANGENT_PRESSURE 0x0800
 #define PK_ORIENTATION 0x1000
+
+#define TPS_INVERT 0x0010 /* 1.1 */
 
 typedef struct tagLOGCONTEXTW {
 	WCHAR lcName[40];
@@ -137,6 +140,7 @@ typedef struct tagORIENTATION {
 } ORIENTATION;
 
 typedef struct tagPACKET {
+	int pkStatus;
 	int pkNormalPressure;
 	int pkTangentPressure;
 	ORIENTATION pkOrientation;
@@ -148,6 +152,13 @@ typedef UINT(WINAPI *WTInfoPtr)(UINT p_category, UINT p_index, LPVOID p_output);
 typedef BOOL(WINAPI *WTPacketPtr)(HANDLE p_ctx, UINT p_param, LPVOID p_packets);
 typedef BOOL(WINAPI *WTEnablePtr)(HANDLE p_ctx, BOOL p_enable);
 
+typedef bool(WINAPI *IsDarkModeAllowedForAppPtr)();
+typedef bool(WINAPI *ShouldAppsUseDarkModePtr)();
+typedef DWORD(WINAPI *GetImmersiveColorFromColorSetExPtr)(UINT dwImmersiveColorSet, UINT dwImmersiveColorType, bool bIgnoreHighContrast, UINT dwHighContrastCacheMode);
+typedef int(WINAPI *GetImmersiveColorTypeFromNamePtr)(const WCHAR *name);
+typedef int(WINAPI *GetImmersiveUserColorSetPreferencePtr)(bool bForceCheckRegistry, bool bSkipCheckOnFail);
+typedef HRESULT(WINAPI *RtlGetVersionPtr)(OSVERSIONINFOW *lpVersionInformation);
+
 // Windows Ink API
 #ifndef POINTER_STRUCTURES
 
@@ -157,6 +168,14 @@ typedef DWORD POINTER_INPUT_TYPE;
 typedef UINT32 POINTER_FLAGS;
 typedef UINT32 PEN_FLAGS;
 typedef UINT32 PEN_MASK;
+
+#ifndef PEN_FLAG_INVERTED
+#define PEN_FLAG_INVERTED 0x00000002
+#endif
+
+#ifndef PEN_FLAG_ERASER
+#define PEN_FLAG_ERASER 0x00000004
+#endif
 
 #ifndef PEN_MASK_PRESSURE
 #define PEN_MASK_PRESSURE 0x00000001
@@ -266,6 +285,15 @@ class DisplayServerWindows : public DisplayServer {
 
 	_THREAD_SAFE_CLASS_
 
+	// UXTheme API
+	static bool dark_title_available;
+	static bool ux_theme_available;
+	static IsDarkModeAllowedForAppPtr IsDarkModeAllowedForApp;
+	static ShouldAppsUseDarkModePtr ShouldAppsUseDarkMode;
+	static GetImmersiveColorFromColorSetExPtr GetImmersiveColorFromColorSetEx;
+	static GetImmersiveColorTypeFromNamePtr GetImmersiveColorTypeFromName;
+	static GetImmersiveUserColorSetPreferencePtr GetImmersiveUserColorSetPreference;
+
 	// WinTab API
 	static bool wintab_available;
 	static WTOpenPtr wintab_WTOpen;
@@ -283,8 +311,6 @@ class DisplayServerWindows : public DisplayServer {
 	String tablet_driver;
 	Vector<String> tablet_drivers;
 
-	void GetMaskBitmaps(HBITMAP hSourceBitmap, COLORREF clrTransparent, OUT HBITMAP &hAndMaskBitmap, OUT HBITMAP &hXorMaskBitmap);
-
 	enum {
 		KEY_EVENT_BUFFER_SIZE = 512
 	};
@@ -297,11 +323,12 @@ class DisplayServerWindows : public DisplayServer {
 		LPARAM lParam;
 	};
 
+	WindowID window_mouseover_id = INVALID_WINDOW_ID;
+
 	KeyEvent key_event_buffer[KEY_EVENT_BUFFER_SIZE];
 	int key_event_pos;
 
 	bool old_invalid;
-	bool outside;
 	int old_x, old_y;
 	Point2i center;
 
@@ -320,12 +347,13 @@ class DisplayServerWindows : public DisplayServer {
 	HINSTANCE hInstance; // Holds The Instance Of The Application
 	String rendering_driver;
 	bool app_focused = false;
+	bool keep_screen_on = false;
+	HANDLE power_request;
 
 	TTS_Windows *tts = nullptr;
 
 	struct WindowData {
 		HWND hWnd;
-		//layered window
 
 		Vector<Vector2> mpath;
 
@@ -343,6 +371,7 @@ class DisplayServerWindows : public DisplayServer {
 		bool no_focus = false;
 		bool window_has_focus = false;
 		bool exclusive = false;
+		bool context_created = false;
 
 		// Used to transfer data between events using timer.
 		WPARAM saved_wparam;
@@ -357,16 +386,14 @@ class DisplayServerWindows : public DisplayServer {
 		int min_pressure;
 		int max_pressure;
 		bool tilt_supported;
+		bool pen_inverted = false;
 		bool block_mm = false;
 
 		int last_pressure_update;
 		float last_pressure;
 		Vector2 last_tilt;
+		bool last_pen_inverted = false;
 
-		HBITMAP hBitmap; //DIB section for layered window
-		uint8_t *dib_data = nullptr;
-		Size2 dib_size;
-		HDC hDC_dib;
 		Size2 min_size;
 		Size2 max_size;
 		int width = 0, height = 0;
@@ -441,6 +468,8 @@ class DisplayServerWindows : public DisplayServer {
 	void _update_real_mouse_position(WindowID p_window);
 
 	void _set_mouse_mode_impl(MouseMode p_mode);
+	WindowID _get_focused_window_or_popup() const;
+	void _register_raw_input_devices(WindowID p_target_window);
 
 	void _process_activate_event(WindowID p_window_id, WPARAM wParam, LPARAM lParam);
 	void _process_key_events();
@@ -462,12 +491,16 @@ public:
 
 	virtual bool tts_is_speaking() const override;
 	virtual bool tts_is_paused() const override;
-	virtual Array tts_get_voices() const override;
+	virtual TypedArray<Dictionary> tts_get_voices() const override;
 
 	virtual void tts_speak(const String &p_text, const String &p_voice, int p_volume = 50, float p_pitch = 1.f, float p_rate = 1.f, int p_utterance_id = 0, bool p_interrupt = false) override;
 	virtual void tts_pause() override;
 	virtual void tts_resume() override;
 	virtual void tts_stop() override;
+
+	virtual bool is_dark_mode_supported() const override;
+	virtual bool is_dark_mode() const override;
+	virtual Color get_accent_color() const override;
 
 	virtual void mouse_set_mode(MouseMode p_mode) override;
 	virtual MouseMode mouse_get_mode() const override;
@@ -485,10 +518,6 @@ public:
 	virtual Rect2i screen_get_usable_rect(int p_screen = SCREEN_OF_MAIN_WINDOW) const override;
 	virtual int screen_get_dpi(int p_screen = SCREEN_OF_MAIN_WINDOW) const override;
 	virtual float screen_get_refresh_rate(int p_screen = SCREEN_OF_MAIN_WINDOW) const override;
-	virtual bool screen_is_touchscreen(int p_screen = SCREEN_OF_MAIN_WINDOW) const override;
-
-	virtual void screen_set_orientation(ScreenOrientation p_orientation, int p_screen = SCREEN_OF_MAIN_WINDOW) override;
-	virtual ScreenOrientation screen_get_orientation(int p_screen = SCREEN_OF_MAIN_WINDOW) const override;
 
 	virtual void screen_set_keep_on(bool p_enable) override; //disable screensaver
 	virtual bool screen_is_kept_on() const override;
@@ -526,6 +555,7 @@ public:
 	virtual void window_set_current_screen(int p_screen, WindowID p_window = MAIN_WINDOW_ID) override;
 
 	virtual Point2i window_get_position(WindowID p_window = MAIN_WINDOW_ID) const override;
+	virtual Point2i window_get_position_with_decorations(WindowID p_window = MAIN_WINDOW_ID) const override;
 	virtual void window_set_position(const Point2i &p_position, WindowID p_window = MAIN_WINDOW_ID) override;
 
 	virtual void window_set_transient(WindowID p_window, WindowID p_parent) override;
@@ -539,7 +569,7 @@ public:
 
 	virtual void window_set_size(const Size2i p_size, WindowID p_window = MAIN_WINDOW_ID) override;
 	virtual Size2i window_get_size(WindowID p_window = MAIN_WINDOW_ID) const override;
-	virtual Size2i window_get_real_size(WindowID p_window = MAIN_WINDOW_ID) const override; //wtf is this? should probable use proper name
+	virtual Size2i window_get_size_with_decorations(WindowID p_window = MAIN_WINDOW_ID) const override;
 
 	virtual void window_set_mode(WindowMode p_mode, WindowID p_window = MAIN_WINDOW_ID) override;
 	virtual WindowMode window_get_mode(WindowID p_window = MAIN_WINDOW_ID) const override;
@@ -595,11 +625,11 @@ public:
 
 	virtual void set_context(Context p_context) override;
 
-	static DisplayServer *create_func(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
+	static DisplayServer *create_func(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, Error &r_error);
 	static Vector<String> get_rendering_drivers_func();
 	static void register_windows_driver();
 
-	DisplayServerWindows(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
+	DisplayServerWindows(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, Error &r_error);
 	~DisplayServerWindows();
 };
 
